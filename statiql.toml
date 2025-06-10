@@ -1,0 +1,18 @@
+[sql_patterns]
+# Variable names that likely contain SQL
+variable_names = ["query", "sql", "_sql"]
+
+# Function parameters that are likely SQL
+parameter_names = ["sql", "query", "statement"]
+
+# Method calls where arguments are likely SQL
+function_calls = [
+    "execute",
+    "query", 
+    "fetchall",
+    "fetchone",
+    "executemany"
+]
+
+# SQL dialects to validate against
+dialect = "postgresql"  # or "mysql", "sqlite", etc.
