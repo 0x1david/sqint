@@ -833,6 +833,7 @@ dependencies = [
  "miette",
  "regex",
  "rustpython-parser",
+ "serde",
  "sqlparser",
  "thiserror",
  "toml",
