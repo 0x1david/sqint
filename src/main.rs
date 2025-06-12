@@ -23,6 +23,8 @@ fn main() {
         Commands::Init(args) => handle_init(args, &cli),
         Commands::Config(args) => handle_config(args, &config, &cli),
     };
+
+    std::process::exit(Logger::exit_code())
 }
 
 fn handle_check(args: &CheckArgs, config: &Config, cli: &Cli) {

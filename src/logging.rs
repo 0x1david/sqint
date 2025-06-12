@@ -1,8 +1,9 @@
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
 static GLOBAL_LOG_LEVEL: AtomicU8 = AtomicU8::new(LogLevel::Info as u8);
 static LOGGER_INITIALIZED: OnceLock<()> = OnceLock::new();
+static HAS_ERROR_OCCURRED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Clone, Copy, Debug)]
 pub enum LogLevel {
@@ -33,7 +34,6 @@ impl LogLevel {
 }
 
 pub struct Logger;
-
 impl Logger {
     pub fn init(level: LogLevel) {
         LOGGER_INITIALIZED.get_or_init(|| {
@@ -56,7 +56,6 @@ impl Logger {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_secs();
-
             println!(
                 "{}{} [{}] {}:{} - {}\x1b[0m",
                 level.color_code(),
@@ -67,6 +66,22 @@ impl Logger {
                 message
             );
         }
+
+        if matches!(level, LogLevel::Error) {
+            HAS_ERROR_OCCURRED.store(true, Ordering::Relaxed);
+        }
+    }
+
+    pub fn has_error_occurred() -> bool {
+        HAS_ERROR_OCCURRED.load(Ordering::Relaxed)
+    }
+
+    pub fn reset_error_state() {
+        HAS_ERROR_OCCURRED.store(false, Ordering::Relaxed);
+    }
+
+    pub fn exit_code() -> i32 {
+        if Self::has_error_occurred() { 1 } else { 0 }
     }
 }
 
