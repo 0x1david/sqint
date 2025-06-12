@@ -18,26 +18,14 @@ fn main() {
 
     setup_logging(&cli);
 
-    let result = match &cli.command {
+    match &cli.command {
         Commands::Check(args) => handle_check(args, &config, &cli),
         Commands::Init(args) => handle_init(args, &cli),
         Commands::Config(args) => handle_config(args, &config, &cli),
     };
-
-    match result {
-        Ok(exit_code) => std::process::exit(exit_code),
-        Err(error) => {
-            eprintln!("Error: {}", error);
-            std::process::exit(1);
-        }
-    }
 }
 
-fn handle_check(
-    args: &CheckArgs,
-    config: &Config,
-    cli: &Cli,
-) -> Result<i32, Box<dyn std::error::Error>> {
+fn handle_check(args: &CheckArgs, config: &Config, cli: &Cli) {
     let cfg = FinderConfig {
         variables: config.variable_names.clone(),
         min_sql_length: config.min_sql_length,
@@ -50,8 +38,12 @@ fn handle_check(
         .filter_map(|f| f.to_str())
         .flat_map(|p| sql_finder.analyze_file(p))
         .collect();
-    sqls.iter().for_each(|s| debug!("{}", s));
-    Ok(0)
+
+    let anlyzer = analyzer::SqlAnalyzer::new(analyzer::SqlDialect::Generic);
+    sqls.iter().for_each(|e| {
+        debug!("{}", e);
+        anlyzer.analyze_sql_extract(e);
+    });
 }
 
 fn setup_logging(cli: &Cli) {
@@ -61,7 +53,6 @@ fn setup_logging(cli: &Cli) {
         (false, false) => LogLevel::Debug, //LogLevel::Warn,
         (true, true) => unreachable!(),
     };
-    dbg!(lvl);
     Logger::init(lvl);
 }
 
@@ -77,16 +68,12 @@ fn load_config(cli: &Cli) -> Config {
     }
 }
 
-fn handle_init(args: &InitArgs, cli: &Cli) -> Result<i32, Box<dyn std::error::Error>> {
+fn handle_init(args: &InitArgs, cli: &Cli) {
     // TODO: Create configuration file
     unimplemented!();
 }
 
-fn handle_config(
-    args: &ConfigArgs,
-    config: &Config,
-    cli: &Cli,
-) -> Result<i32, Box<dyn std::error::Error>> {
+fn handle_config(args: &ConfigArgs, config: &Config, cli: &Cli) {
     if args.validate {
         println!("Validating configuration...");
     }
@@ -96,5 +83,4 @@ fn handle_config(
             println!("  - {}", var);
         }
     }
-    Ok(0)
 }

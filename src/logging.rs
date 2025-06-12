@@ -85,27 +85,27 @@ macro_rules! log {
 #[macro_export]
 macro_rules! error {
     ($($arg:tt)*) => {
-        log!($crate::LogLevel::Error, $($arg)*)
+        $crate::log!($crate::LogLevel::Error, $($arg)*)
     };
 }
 
 #[macro_export]
 macro_rules! warn {
     ($($arg:tt)*) => {
-        log!($crate::LogLevel::Warn, $($arg)*)
+        $crate::log!($crate::LogLevel::Warn, $($arg)*)
     };
 }
 
 #[macro_export]
 macro_rules! info {
     ($($arg:tt)*) => {
-        log!($crate::LogLevel::Info, $($arg)*)
+        $crate::log!($crate::LogLevel::Info, $($arg)*)
     };
 }
 
 #[macro_export]
 macro_rules! debug {
     ($($arg:tt)*) => {
-        log!($crate::LogLevel::Debug, $($arg)*)
+        $crate::log!($crate::LogLevel::Debug, $($arg)*)
     };
 }

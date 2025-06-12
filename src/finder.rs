@@ -7,16 +7,16 @@ use std::{
 
 #[derive(Debug, Clone)]
 pub struct SqlExtract {
-    file_path: String,
-    strings: Vec<SqlString>,
+    pub file_path: String,
+    pub strings: Vec<SqlString>,
 }
 
 /// Represents a detected SQL variable
 #[derive(Debug, Clone)]
 pub struct SqlString {
-    byte_offset: usize,
-    variable_name: String,
-    sql_content: String,
+    pub byte_offset: usize,
+    pub variable_name: String,
+    pub sql_content: String,
 }
 
 #[derive(Debug, Clone)]
