@@ -13,6 +13,8 @@ pub struct Config {
     pub min_sql_length: usize,
     /// Case sensitive variable name matching
     pub case_sensitive: bool,
+    pub verbose: bool,
+    pub quiet: bool,
 }
 
 impl Default for Config {
@@ -33,6 +35,8 @@ impl Default for Config {
             ],
             min_sql_length: 10,
             case_sensitive: false,
+            verbose: false,
+            quiet: false,
         }
     }
 }
@@ -128,12 +132,16 @@ mod tests {
             variable_names: vec!["Query".to_string()],
             case_sensitive: true,
             min_sql_length: 1,
+            verbose: false,
+            quiet: false,
         };
 
         let case_insensitive_config = Config {
             variable_names: vec!["Query".to_string()],
             case_sensitive: false,
             min_sql_length: 1,
+            verbose: false,
+            quiet: false,
         };
 
         // Case sensitive should only match exact case

@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 static GLOBAL_LOG_LEVEL: AtomicU8 = AtomicU8::new(LogLevel::Info as u8);
 static LOGGER_INITIALIZED: OnceLock<()> = OnceLock::new();
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum LogLevel {
     Error = 0,
     Warn = 1,
@@ -50,7 +50,7 @@ impl Logger {
         (level as u8) <= current_level
     }
 
-    fn log_message(level: LogLevel, message: &str, file: &str, line: u32) {
+    pub fn log_message(level: LogLevel, message: &str, file: &str, line: u32) {
         if Self::should_log(level) {
             let timestamp = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -78,34 +78,34 @@ macro_rules! log {
             &format!($($arg)*),
             file!(),
             line!()
-        );
+        )
     };
 }
 
 #[macro_export]
 macro_rules! error {
     ($($arg:tt)*) => {
-        log!($crate::LogLevel::Error, $($arg)*);
+        log!($crate::LogLevel::Error, $($arg)*)
     };
 }
 
 #[macro_export]
 macro_rules! warn {
     ($($arg:tt)*) => {
-        log!($crate::LogLevel::Warn, $($arg)*);
+        log!($crate::LogLevel::Warn, $($arg)*)
     };
 }
 
 #[macro_export]
 macro_rules! info {
     ($($arg:tt)*) => {
-        log!($crate::LogLevel::Info, $($arg)*);
+        log!($crate::LogLevel::Info, $($arg)*)
     };
 }
 
 #[macro_export]
 macro_rules! debug {
     ($($arg:tt)*) => {
-        log!($crate::LogLevel::Debug, $($arg)*);
+        log!($crate::LogLevel::Debug, $($arg)*)
     };
 }
