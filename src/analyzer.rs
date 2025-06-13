@@ -1,20 +1,11 @@
+use std::error::Error;
+
 use sqlparser::ast::Statement;
 use sqlparser::dialect::{GenericDialect, PostgreSqlDialect, SQLiteDialect};
-use sqlparser::parser::Parser;
+use sqlparser::parser::{Parser, ParserError};
 
 use crate::finder::{SqlExtract, SqlString};
 use crate::{debug, error, info};
-
-#[derive(Debug, Clone)]
-pub enum StatementType {
-    Select,
-    Insert,
-    Update,
-    Delete,
-    Create,
-    Drop,
-    Other(String),
-}
 
 #[derive(Debug, Clone)]
 pub enum SqlDialect {
@@ -49,10 +40,14 @@ impl SqlAnalyzer {
 
         match self.parse_sql(&filled_sql) {
             Ok(_) => {
-                info!("Valid sql string: {}", sql_string.sql_content)
+                info!("Valid sql string: `{}`", sql_string.sql_content)
             }
             Err(e) => {
-                error!("Invalid sql string: {}", sql_string.sql_content)
+                error!(
+                    "Invalid sql string: `{}` => {}",
+                    sql_string.sql_content,
+                    SqlError::from_parser_error(e).reason
+                )
             }
         }
     }
@@ -65,6 +60,46 @@ impl SqlAnalyzer {
         };
 
         Parser::parse_sql(&*dialect, sql)
+    }
+}
+
+#[derive(Debug, Default)]
+struct SqlError {
+    pub reason: String,
+    pub line: usize,
+    pub col: usize,
+}
+
+impl SqlError {
+    fn new(reason: String, line: usize, col: usize) -> Self {
+        SqlError { reason, line, col }
+    }
+
+    fn from_parser_error(e: ParserError) -> SqlError {
+        match e {
+            ParserError::ParserError(msg) | ParserError::TokenizerError(msg) => {
+                let line_start = msg
+                    .find(" at Line: ")
+                    .expect("Should always contain line information.");
+                let after_line = &msg[line_start + " at Line: ".len()..];
+
+                let comma_pos = after_line
+                    .find(", Column: ")
+                    .expect("Should always contain col information.");
+
+                let line_str = &after_line[..comma_pos];
+                let col_str = &after_line[comma_pos + ", Column: ".len()..];
+
+                let line = line_str.parse().unwrap_or(0);
+                let column = col_str.parse().unwrap_or(0);
+
+                let reason_msg = msg[..line_start].to_string();
+                SqlError::new(reason_msg, line, column)
+            }
+            ParserError::RecursionLimitExceeded => {
+                SqlError::new("Recursion Limit Exceeded".to_string(), 0, 0)
+            }
+        }
     }
 }
 
