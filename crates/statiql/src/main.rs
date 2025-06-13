@@ -1,15 +1,13 @@
-// #![allow(dead_code, unused_variables)]
+#![allow(dead_code, unused_variables)]
 mod analyzer;
 mod cli;
 mod config;
-mod finder;
-mod logging;
 
 use clap::Parser;
 use cli::{CheckArgs, Cli, Commands, ConfigArgs};
 use config::{Config, DEFAULT_CONFIG, DEFAULT_CONFIG_NAME};
 use finder::{FinderConfig, SqlExtract, SqlFinder, collect_files};
-use logging::{LogLevel, Logger};
+use logging::{LogLevel, Logger, always_log, debug};
 use std::env;
 
 fn main() {
@@ -83,6 +81,7 @@ fn handle_init() {
     let path = env::current_dir()
         .expect("Failed fetching CWD.")
         .join(DEFAULT_CONFIG_NAME);
+
     std::fs::write(&path, DEFAULT_CONFIG)
         .expect("Can't write to {path.display()}, likely due to permission issues");
     always_log!("Created default config at {}", path.display());

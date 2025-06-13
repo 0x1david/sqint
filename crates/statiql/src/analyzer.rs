@@ -1,11 +1,9 @@
-use std::error::Error;
-
 use sqlparser::ast::Statement;
 use sqlparser::dialect::{GenericDialect, PostgreSqlDialect, SQLiteDialect};
 use sqlparser::parser::{Parser, ParserError};
 
-use crate::finder::{SqlExtract, SqlString};
-use crate::{debug, error, info};
+use finder::{SqlExtract, SqlString};
+use logging::{debug, error, info};
 
 #[derive(Debug, Clone)]
 pub enum SqlDialect {
@@ -39,9 +37,7 @@ impl SqlAnalyzer {
         let filled_sql = fill_placeholders(&sql_string.sql_content);
 
         match self.parse_sql(&filled_sql) {
-            Ok(_) => {
-                info!("Valid sql string: `{}`", sql_string.sql_content)
-            }
+            Ok(_) => info!("Valid sql string: `{}`", sql_string.sql_content),
             Err(e) => {
                 error!(
                     "Invalid sql string: `{}` => {}",

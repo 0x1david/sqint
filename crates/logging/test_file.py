@@ -11,6 +11,9 @@ sql = "INSERT INTO products (name, price) VALUES ('laptop', 999.99)"
 statement = "UPDATE users SET last_login = NOW() WHERE id = ?"
 cmd = "DELETE FROM sessions WHERE expires_at < NOW()"
 
+# Multi Assignments
+not_query, is_query, not_even_query = "Foo", "select * from table where apples == 'green'", "Baz"
+
 # Variables with non-SQL content (should be ignored)
 message = "Hello world"
 config_path = "/etc/myapp/config.json"

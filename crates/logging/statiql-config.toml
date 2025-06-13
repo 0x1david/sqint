@@ -13,6 +13,7 @@ variable_names = [
     "insert_query",
     "update_query",
     "delete_query",
+    "is_query"
 ]
 
 # Directories to look through for files matching `file_patterns`

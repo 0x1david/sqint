@@ -1,0 +1,9 @@
+[package]
+name = "finder"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+logging.workspace = true
+regex.workspace = true
+rustpython-parser.workspace = true
