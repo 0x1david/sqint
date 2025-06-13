@@ -75,40 +75,6 @@ impl Config {
         toml::from_str(toml_content)
             .map_err(|e| ConfigError::Parse(format!("Failed to parse TOML: {}", e)))
     }
-
-    /// Save configuration to a TOML file
-    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), ConfigError> {
-        let toml_content = toml::to_string_pretty(self)
-            .map_err(|e| ConfigError::Serialize(format!("Failed to serialize config: {}", e)))?;
-
-        fs::write(path, toml_content)
-            .map_err(|e| ConfigError::Io(format!("Failed to write config file: {}", e)))?;
-
-        Ok(())
-    }
-
-    /// Check if a variable name should be analyzed for SQL
-    pub fn should_analyze_variable(&self, variable_name: &str) -> bool {
-        if self.case_sensitive {
-            self.variable_names.contains(&variable_name.to_string())
-        } else {
-            let name_lower = variable_name.to_lowercase();
-            self.variable_names
-                .iter()
-                .any(|pattern| pattern.to_lowercase() == name_lower)
-        }
-    }
-
-    /// Check if content meets minimum length requirement
-    pub fn meets_min_length(&self, content: &str) -> bool {
-        content.trim().len() >= self.min_sql_length
-    }
-
-    /// Generate a default configuration file
-    pub fn generate_default_config_file<P: AsRef<Path>>(path: P) -> Result<(), ConfigError> {
-        let default_config = Self::default();
-        default_config.save_to_file(path)
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -118,7 +84,4 @@ pub enum ConfigError {
 
     #[error("Parse error: {0}")]
     Parse(String),
-
-    #[error("Serialize error: {0}")]
-    Serialize(String),
 }
