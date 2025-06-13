@@ -9,7 +9,7 @@ use std::path::PathBuf;
 #[command(author = "David Bousi <bousi.david@pm.com>")]
 pub struct Cli {
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 
     #[arg(short, long, global = true)]
     pub config: Option<PathBuf>,
@@ -22,6 +22,10 @@ pub struct Cli {
 
     #[arg(long, global = true, value_enum, default_value = "colored")]
     pub format: OutputFormat,
+
+    // Flatten CheckArgs so they appear at the top level when no subcommand is used
+    #[command(flatten)]
+    pub check_args: CheckArgs,
 }
 
 #[derive(Subcommand)]

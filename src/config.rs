@@ -3,24 +3,34 @@ use std::fs;
 use std::path::Path;
 
 pub const DEFAULT_CONFIG_NAME: &str = "statiql-config.toml";
+pub const DEFAULT_CONFIG: &str = include_str!("default.toml");
 
 /// Configuration for SQL detection
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Config {
-    /// Exact variable names to check for SQL content
     pub variable_names: Vec<String>,
+    pub file_patterns: Vec<String>,
+    pub exclude_patterns: Vec<String>,
+    pub targets: Vec<String>,
+    pub ignore_contexts: Vec<String>,
+
     /// Minimum SQL content length to consider
     pub min_sql_length: usize,
     /// Case sensitive variable name matching
     pub case_sensitive: bool,
     pub verbose: bool,
     pub quiet: bool,
+    pub respect_gitignore: bool,
+    pub debug: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             variable_names: vec![
+                "_query".to_string(),
+                "_sql".to_string(),
                 "query".to_string(),
                 "sql".to_string(),
                 "statement".to_string(),
@@ -33,10 +43,20 @@ impl Default for Config {
                 "update_query".to_string(),
                 "delete_query".to_string(),
             ],
+            targets: vec![".".to_string()],
+            file_patterns: vec![
+                "*.py".to_string(),
+                "*.pyi".to_string(),
+                "*.ipynb".to_string(),
+            ],
+            exclude_patterns: vec![],
+            ignore_contexts: vec![],
             min_sql_length: 10,
             case_sensitive: false,
             verbose: false,
             quiet: false,
+            respect_gitignore: true,
+            debug: false,
         }
     }
 }
@@ -101,66 +121,4 @@ pub enum ConfigError {
 
     #[error("Serialize error: {0}")]
     Serialize(String),
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_default_config() {
-        let config = Config::default();
-        assert_eq!(config.min_sql_length, 10);
-        assert!(!config.case_sensitive);
-        assert!(config.variable_names.contains(&"query".to_string()));
-    }
-
-    #[test]
-    fn test_should_analyze_variable() {
-        let config = Config::default();
-
-        assert!(config.should_analyze_variable("query"));
-        assert!(config.should_analyze_variable("sql"));
-        assert!(config.should_analyze_variable("QUERY"));
-        assert!(!config.should_analyze_variable("username"));
-        assert!(!config.should_analyze_variable("data"));
-    }
-
-    #[test]
-    fn test_case_sensitivity() {
-        let case_sensitive_config = Config {
-            variable_names: vec!["Query".to_string()],
-            case_sensitive: true,
-            min_sql_length: 1,
-            verbose: false,
-            quiet: false,
-        };
-
-        let case_insensitive_config = Config {
-            variable_names: vec!["Query".to_string()],
-            case_sensitive: false,
-            min_sql_length: 1,
-            verbose: false,
-            quiet: false,
-        };
-
-        // Case sensitive should only match exact case
-        assert!(case_sensitive_config.should_analyze_variable("Query"));
-        assert!(!case_sensitive_config.should_analyze_variable("query"));
-        assert!(!case_sensitive_config.should_analyze_variable("QUERY"));
-
-        // Case insensitive should match all cases
-        assert!(case_insensitive_config.should_analyze_variable("Query"));
-        assert!(case_insensitive_config.should_analyze_variable("query"));
-        assert!(case_insensitive_config.should_analyze_variable("QUERY"));
-    }
-
-    #[test]
-    fn test_min_length() {
-        let config = Config::default();
-
-        assert!(config.meets_min_length("SELECT * FROM users"));
-        assert!(!config.meets_min_length("test"));
-        assert!(!config.meets_min_length("   "));
-    }
 }

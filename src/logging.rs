@@ -7,15 +7,17 @@ static HAS_ERROR_OCCURRED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Clone, Copy, Debug)]
 pub enum LogLevel {
-    Error = 0,
-    Warn = 1,
-    Info = 2,
-    Debug = 3,
+    Always = 0,
+    Error = 1,
+    Warn = 2,
+    Info = 3,
+    Debug = 4,
 }
 
 impl LogLevel {
     fn as_str(&self) -> &'static str {
         match self {
+            LogLevel::Always => "ALWAYS",
             LogLevel::Error => "ERROR",
             LogLevel::Warn => "WARN",
             LogLevel::Info => "INFO",
@@ -25,10 +27,11 @@ impl LogLevel {
 
     fn color_code(&self) -> &'static str {
         match self {
-            LogLevel::Error => "\x1b[31m", // Red
-            LogLevel::Warn => "\x1b[33m",  // Yellow
-            LogLevel::Info => "\x1b[32m",  // Green
-            LogLevel::Debug => "\x1b[36m", // Cyan
+            LogLevel::Always => "\x1b[1;37m", // Bold White
+            LogLevel::Error => "\x1b[31m",    // Red
+            LogLevel::Warn => "\x1b[33m",     // Yellow
+            LogLevel::Info => "\x1b[32m",     // Green
+            LogLevel::Debug => "\x1b[36m",    // Cyan
         }
     }
 }
@@ -94,6 +97,20 @@ macro_rules! log {
             file!(),
             line!()
         )
+    };
+}
+
+#[macro_export]
+macro_rules! always_log {
+    ($($arg:tt)*) => {
+        $crate::log!($crate::LogLevel::Always, $($arg)*)
+    };
+}
+
+#[macro_export]
+macro_rules! exception {
+    ($($arg:tt)*) => {
+        $crate::log!($crate::LogLevel::Error, $($arg)*)
     };
 }
 

@@ -7,7 +7,7 @@ mod logging;
 
 use clap::Parser;
 use cli::{CheckArgs, Cli, Commands, ConfigArgs, InitArgs};
-use config::{Config, DEFAULT_CONFIG_NAME};
+use config::{Config, DEFAULT_CONFIG, DEFAULT_CONFIG_NAME};
 use finder::{FinderConfig, SqlExtract, SqlFinder, collect_files};
 use logging::{LogLevel, Logger};
 use std::env;
@@ -19,10 +19,15 @@ fn main() {
     setup_logging(&cli);
 
     match &cli.command {
-        Commands::Check(args) => handle_check(args, &config, &cli),
-        Commands::Init(args) => handle_init(args, &cli),
-        Commands::Config(args) => handle_config(args, &config, &cli),
-    };
+        None => handle_check(&cli.check_args, &config, &cli),
+        Some(comm) => {
+            match comm {
+                Commands::Check(args) => handle_check(args, &config, &cli),
+                Commands::Init(args) => handle_init(args, &cli),
+                Commands::Config(args) => handle_config(args, &config, &cli),
+            };
+        }
+    }
 
     std::process::exit(Logger::exit_code())
 }
@@ -71,8 +76,12 @@ fn load_config(cli: &Cli) -> Config {
 }
 
 fn handle_init(args: &InitArgs, cli: &Cli) {
-    // TODO: Create configuration file
-    unimplemented!();
+    let path = env::current_dir()
+        .expect("Failed fetching CWD.")
+        .join(DEFAULT_CONFIG_NAME);
+    std::fs::write(&path, DEFAULT_CONFIG)
+        .expect("Can't write to {path.display()}, likely due to permission issues");
+    always_log!("Created default config at {}", path.display());
 }
 
 fn handle_config(args: &ConfigArgs, config: &Config, cli: &Cli) {
