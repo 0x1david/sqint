@@ -78,22 +78,26 @@ impl SqlError {
     fn from_parser_error(e: ParserError) -> SqlError {
         match e {
             ParserError::ParserError(msg) | ParserError::TokenizerError(msg) => {
-                let line_start = msg
-                    .find(" at Line: ")
-                    .expect("Should always contain line information.");
-                let after_line = &msg[line_start + " at Line: ".len()..];
+                let line_marker = " at Line: ";
+                let col_marker = ", Column: ";
 
-                let comma_pos = after_line
-                    .find(", Column: ")
+                let line_start_idx = msg
+                    .find(line_marker)
+                    .expect("Should always contain line information.");
+
+                let line_num_start = line_start_idx + line_marker.len();
+
+                let comma_idx = msg[line_num_start..]
+                    .find(col_marker)
                     .expect("Should always contain col information.");
 
-                let line_str = &after_line[..comma_pos];
-                let col_str = &after_line[comma_pos + ", Column: ".len()..];
+                let line_num_end = line_num_start + comma_idx;
+                let col_num_start = line_num_end + col_marker.len();
 
-                let line = line_str.parse().unwrap_or(0);
-                let column = col_str.parse().unwrap_or(0);
+                let line = msg[line_num_start..line_num_end].parse().unwrap_or(0);
+                let column = msg[col_num_start..].parse().unwrap_or(0);
 
-                let reason_msg = msg[..line_start].to_string();
+                let reason_msg = msg[..line_start_idx].to_string();
                 SqlError::new(reason_msg, line, column)
             }
             ParserError::RecursionLimitExceeded => {

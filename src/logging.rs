@@ -51,14 +51,9 @@ impl Logger {
 
     pub fn log_message(level: LogLevel, message: &str, file: &str, line: u32) {
         if Self::should_log(level) {
-            let timestamp = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
             println!(
-                "{}{} [{}] {}:{} - {}\x1b[0m",
+                "{}[{}] {}:{} - {}\x1b[0m",
                 level.color_code(),
-                timestamp,
                 level.as_str(),
                 file,
                 line,
