@@ -44,10 +44,6 @@ impl Logger {
         });
     }
 
-    pub fn set_level(level: LogLevel) {
-        GLOBAL_LOG_LEVEL.store(level as u8, Ordering::Relaxed);
-    }
-
     pub fn should_log(level: LogLevel) -> bool {
         let current_level = GLOBAL_LOG_LEVEL.load(Ordering::Relaxed);
         (level as u8) <= current_level
@@ -77,10 +73,6 @@ impl Logger {
 
     pub fn has_error_occurred() -> bool {
         HAS_ERROR_OCCURRED.load(Ordering::Relaxed)
-    }
-
-    pub fn reset_error_state() {
-        HAS_ERROR_OCCURRED.store(false, Ordering::Relaxed);
     }
 
     pub fn exit_code() -> i32 {

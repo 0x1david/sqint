@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 
 pub const DEFAULT_CONFIG_NAME: &str = "statiql-config.toml";
-pub const DEFAULT_CONFIG: &str = include_str!("default.toml");
+pub const DEFAULT_CONFIG: &str = include_str!("./assets/default.toml");
 
 /// Configuration for SQL detection
 #[derive(Debug, Clone, Serialize, Deserialize)]

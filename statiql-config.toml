@@ -44,3 +44,5 @@ quiet = false
 
 # Whether file matching will respect git ignore
 respect_gitignore = true
+
+debug = true

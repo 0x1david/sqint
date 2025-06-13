@@ -1,4 +1,4 @@
-use crate::{debug, error, log};
+use crate::{debug, error};
 use rustpython_parser::{Parse, ast};
 use std::{
     fmt, fs,

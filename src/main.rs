@@ -1,4 +1,4 @@
-#![allow(dead_code, unused_variables)]
+// #![allow(dead_code, unused_variables)]
 mod analyzer;
 mod cli;
 mod config;
@@ -6,7 +6,7 @@ mod finder;
 mod logging;
 
 use clap::Parser;
-use cli::{CheckArgs, Cli, Commands, ConfigArgs, InitArgs};
+use cli::{CheckArgs, Cli, Commands, ConfigArgs};
 use config::{Config, DEFAULT_CONFIG, DEFAULT_CONFIG_NAME};
 use finder::{FinderConfig, SqlExtract, SqlFinder, collect_files};
 use logging::{LogLevel, Logger};
@@ -16,15 +16,15 @@ fn main() {
     let cli = Cli::parse();
     let config = load_config(&cli);
 
-    setup_logging(&cli);
+    setup_logging(&cli, config.debug);
 
     match &cli.command {
         None => handle_check(&cli.check_args, &config, &cli),
         Some(comm) => {
             match comm {
                 Commands::Check(args) => handle_check(args, &config, &cli),
-                Commands::Init(args) => handle_init(args, &cli),
-                Commands::Config(args) => handle_config(args, &config, &cli),
+                Commands::Init(_) => handle_init(),
+                Commands::Config(args) => handle_config(args, &config),
             };
         }
     }
@@ -53,12 +53,16 @@ fn handle_check(args: &CheckArgs, config: &Config, cli: &Cli) {
     });
 }
 
-fn setup_logging(cli: &Cli) {
-    let lvl = match (cli.verbose, cli.quiet) {
-        (true, false) => LogLevel::Info,
-        (false, true) => LogLevel::Error,
-        (false, false) => LogLevel::Debug, //LogLevel::Warn,
-        (true, true) => unreachable!(),
+fn setup_logging(cli: &Cli, debug: bool) {
+    let lvl = if debug {
+        LogLevel::Debug
+    } else {
+        match (cli.verbose, cli.quiet) {
+            (true, false) => LogLevel::Info,
+            (false, true) => LogLevel::Error,
+            (false, false) => LogLevel::Warn,
+            (true, true) => unreachable!(),
+        }
     };
     Logger::init(lvl);
 }
@@ -68,14 +72,14 @@ fn load_config(cli: &Cli) -> Config {
         Some(config_path) => Config::from_file(config_path).unwrap_or_default(),
         None => {
             let mut cwd = env::current_dir().expect("Not able to read current working directory.");
-            cwd.set_file_name(DEFAULT_CONFIG_NAME);
+            cwd.push(DEFAULT_CONFIG_NAME);
             let cfg = Config::from_file(cwd);
             cfg.unwrap_or_default()
         }
     }
 }
 
-fn handle_init(args: &InitArgs, cli: &Cli) {
+fn handle_init() {
     let path = env::current_dir()
         .expect("Failed fetching CWD.")
         .join(DEFAULT_CONFIG_NAME);
@@ -84,7 +88,7 @@ fn handle_init(args: &InitArgs, cli: &Cli) {
     always_log!("Created default config at {}", path.display());
 }
 
-fn handle_config(args: &ConfigArgs, config: &Config, cli: &Cli) {
+fn handle_config(args: &ConfigArgs, config: &Config) {
     if args.validate {
         println!("Validating configuration...");
     }
