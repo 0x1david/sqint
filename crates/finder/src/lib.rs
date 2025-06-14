@@ -1,8 +1,9 @@
 mod tests;
-use logging::{always_log, debug, error};
+use logging::{debug, error};
 use rustpython_parser::{
     Parse,
     ast::{self, Identifier},
+    text_size::TextRange,
 };
 use std::{
     fmt, fs,
@@ -162,7 +163,6 @@ impl SqlFinder {
             _ => {}
         }
     }
-
     fn process_paired_assignments(
         &self,
         targets: &[ast::Expr],
@@ -170,18 +170,32 @@ impl SqlFinder {
         byte_offset: usize,
         contexts: &mut Vec<SqlString>,
     ) {
-        // Process each target-value pair
-        for (target, value) in targets.iter().zip(values.iter()) {
-            self.process_assignment_target(target, value, byte_offset, contexts);
-        }
+        let mut value_idx = 0;
 
-        // Handle cases where there are more targets than values or vice versa
-        if targets.len() != values.len() {
-            always_log!(
-                "Mismatched tuple assignment: {} targets, {} values",
-                targets.len(),
-                values.len()
-            );
+        for target in targets.iter() {
+            if let ast::Expr::Starred(ast::ExprStarred {
+                value: starred_target,
+                ..
+            }) = target
+            {
+                let starred_count = values.len() - targets.len() + 1;
+                let consumed_values = &values[value_idx..value_idx + starred_count];
+                let new_list_expr = ast::Expr::List(ast::ExprList {
+                    range: TextRange::default(),
+                    elts: consumed_values.to_vec(),
+                    ctx: ast::ExprContext::Load,
+                });
+                self.process_assignment_target(
+                    starred_target,
+                    &new_list_expr,
+                    byte_offset,
+                    contexts,
+                );
+                value_idx += starred_count;
+            } else {
+                self.process_assignment_target(target, &values[value_idx], byte_offset, contexts);
+                value_idx += 1;
+            }
         }
     }
 
