@@ -21,7 +21,7 @@ mod tests {
         let parsed = ast::Suite::parse(code, "test.py").expect("Failed to parse");
         let finder = create_test_finder();
         let mut contexts = Vec::new();
-        finder.analyze_stmts(&parsed, "test.py", &mut contexts);
+        finder.analyze_stmts(&parsed, &mut contexts);
 
         assert_eq!(
             contexts.len(),
@@ -519,6 +519,266 @@ Sql = "DELETE FROM cache"
                 ("sql", "SELECT 4"),
             ],
             "complex nested tuple patterns",
+        );
+    }
+    #[test]
+    fn test_f_string_simple() {
+        test_find(
+            r#"
+table = "users"
+query = f"select * from {table}"
+            "#,
+            vec![("query", "select * from {table}")],
+            "f-string simple variable substitution",
+        );
+    }
+
+    #[test]
+    fn test_f_string_multiple_vars() {
+        test_find(
+            r#"
+table = "users"
+status = "active"
+query = f"select * from {table} where status = '{status}'"
+            "#,
+            vec![("query", "select * from {table} where status = '{status}'")],
+            "f-string multiple variables substitution",
+        );
+    }
+
+    #[test]
+    fn test_f_string_with_numbers() {
+        test_find(
+            r#"
+table = "products"
+min_price = 100
+query = f"select * from {table} where price > {min_price}"
+            "#,
+            vec![("query", "select * from {table} where price > {min_price}")],
+            "f-string with number substitution",
+        );
+    }
+
+    #[test]
+    fn test_percent_formatting_positional() {
+        test_find(
+            r#"
+query = "select * from %s where id = %d" % ("users", 123)
+            "#,
+            vec![("query", "select * from {users} where id = {123}")],
+            "percent formatting positional substitution",
+        );
+    }
+
+    #[test]
+    fn test_percent_formatting_named() {
+        test_find(
+            r#"
+query = "select * from %(table)s where status = '%(status)s'" % {"table": "users", "status": "active"}
+            "#,
+            vec![("query", "select * from users where status = 'active'")],
+            "percent formatting named substitution",
+        );
+    }
+
+    #[test]
+    fn test_format_method_positional() {
+        test_find(
+            r#"
+query = "select * from {} where status = '{}'".format("users", "active")
+            "#,
+            vec![("query", "select * from users where status = 'active'")],
+            "format method positional substitution",
+        );
+    }
+
+    #[test]
+    fn test_format_method_named() {
+        test_find(
+            r#"
+query = "select * from {table} where status = '{status}'".format(table="users", status="active")
+            "#,
+            vec![("query", "select * from users where status = 'active'")],
+            "format method named substitution",
+        );
+    }
+
+    #[test]
+    fn test_format_method_numbered() {
+        test_find(
+            r#"
+query = "select * from {0} where id = {1}".format("users", 123)
+            "#,
+            vec![("query", "select * from users where id = 123")],
+            "format method numbered substitution",
+        );
+    }
+
+    #[test]
+    fn test_multiline_f_string() {
+        test_find(
+            r#"
+table = "users"
+status = "active"
+query = f"""
+    select 
+        id,
+        name,
+        email
+    from {table}
+    where status = '{status}'
+"""
+            "#,
+            vec![(
+                "query",
+                "\n    select \n        id,\n        name,\n        email\n    from users\n    where status = 'active'\n",
+            )],
+            "multiline f-string substitution",
+        );
+    }
+
+    #[test]
+    fn test_complex_format_with_join() {
+        test_find(
+            r#"
+columns = ["id", "name", "email"]
+table = "users"
+query = "select {} from {}".format(", ".join(columns), table)
+            "#,
+            vec![("query", "select id, name, email from users")],
+            "format with join operation substitution",
+        );
+    }
+
+    #[test]
+    fn test_nested_f_string_expressions() {
+        test_find(
+            r#"
+base_table = "user"
+query = f"select * from {base_table + 's'} where id > {10 * 5}"
+            "#,
+            vec![("query", "select * from users where id > 50")],
+            "f-string with expression evaluation",
+        );
+    }
+
+    #[test]
+    fn test_format_with_dictionary_unpacking() {
+        test_find(
+            r#"
+params = {"table": "orders", "status": "pending", "limit": 50}
+query = "select * from {table} where status = '{status}' limit {limit}".format(**params)
+            "#,
+            vec![(
+                "query",
+                "select * from orders where status = 'pending' limit 50",
+            )],
+            "format with dictionary unpacking substitution",
+        );
+    }
+
+    #[test]
+    fn test_percent_with_mixed_types() {
+        test_find(
+            r#"
+query = "select * from %s where price > %.2f and quantity = %d" % ("products", 99.99, 10)
+            "#,
+            vec![(
+                "query",
+                "select * from products where price > 99.99 and quantity = 10",
+            )],
+            "percent formatting mixed types substitution",
+        );
+    }
+
+    #[test]
+    fn test_f_string_with_method_calls() {
+        test_find(
+            r#"
+table_name = "UsErS"
+query = f"select * from {table_name.lower()}"
+            "#,
+            vec![("query", "select * from users")],
+            "f-string with method call substitution",
+        );
+    }
+
+    #[test]
+    fn test_format_with_list_indexing() {
+        test_find(
+            r#"
+tables = ["users", "orders", "products"]
+query = "select * from {} join {} on users.id = orders.user_id".format(tables[0], tables[1])
+            "#,
+            vec![(
+                "query",
+                "select * from users join orders on users.id = orders.user_id",
+            )],
+            "format with list indexing substitution",
+        );
+    }
+
+    #[test]
+    fn test_nested_format_calls() {
+        test_find(
+            r#"
+table = "users"
+condition = "status = '{}'".format("active")
+query = "select * from {} where {}".format(table, condition)
+            "#,
+            vec![("query", "select * from users where status = 'active'")],
+            "nested format calls substitution",
+        );
+    }
+
+    #[test]
+    fn test_f_string_with_dictionary_access() {
+        test_find(
+            r#"
+config = {"table": "customers", "limit": 100}
+query = f"select * from {config['table']} limit {config['limit']}"
+            "#,
+            vec![("query", "select * from customers limit 100")],
+            "f-string with dictionary access substitution",
+        );
+    }
+
+    #[test]
+    fn test_format_with_string_operations() {
+        test_find(
+            r#"
+prefix = "temp_"
+table = "users"
+query = "select * from {}".format(prefix + table)
+            "#,
+            vec![("query", "select * from temp_users")],
+            "format with string concatenation substitution",
+        );
+    }
+
+    #[test]
+    fn test_conditional_f_string() {
+        test_find(
+            r#"
+include_deleted = False
+table_suffix = "_all" if include_deleted else ""
+query = f"select * from users{table_suffix}"
+            "#,
+            vec![("query", "select * from users")],
+            "f-string with conditional substitution",
+        );
+    }
+
+    #[test]
+    fn test_format_with_arithmetic() {
+        test_find(
+            r#"
+base_limit = 50
+multiplier = 2
+query = "select * from users limit {}".format(base_limit * multiplier)
+            "#,
+            vec![("query", "select * from users limit 100")],
+            "format with arithmetic substitution",
         );
     }
 }

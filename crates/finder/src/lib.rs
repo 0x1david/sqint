@@ -1,9 +1,9 @@
+mod assign;
 mod tests;
 use logging::{debug, error};
 use rustpython_parser::{
     Parse,
-    ast::{self, Identifier},
-    text_size::TextRange,
+    ast::{self},
 };
 use std::{
     fmt, fs,
@@ -13,7 +13,6 @@ use std::{
 #[derive(Debug, Clone)]
 struct SearchCtx {
     pub var_assign: bool,
-    pub multiple_var_assig: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -59,7 +58,7 @@ impl SqlFinder {
             .ok()?;
 
         let mut contexts = Vec::new();
-        self.analyze_stmts(&parsed, file_path, &mut contexts);
+        self.analyze_stmts(&parsed, &mut contexts);
 
         Some(SqlExtract {
             file_path: file_path.to_string(),
@@ -67,146 +66,14 @@ impl SqlFinder {
         })
     }
 
-    pub(crate) fn analyze_stmts(
-        &self,
-        suite: &ast::Suite,
-        file_path: &str,
-        contexts: &mut Vec<SqlString>,
-    ) {
+    pub(crate) fn analyze_stmts(&self, suite: &ast::Suite, contexts: &mut Vec<SqlString>) {
         for stmt in suite {
             match stmt {
                 ast::Stmt::Assign(assign) if self.ctx.var_assign => {
-                    self.analyze_assignment(assign, file_path, contexts);
+                    self.analyze_assignment(assign, contexts);
                 }
                 _ => {} // TODO: Add more query detection contexts
             }
-        }
-    }
-
-    fn analyze_assignment(
-        &self,
-        assign: &ast::StmtAssign,
-        file_path: &str,
-        contexts: &mut Vec<SqlString>,
-    ) {
-        for target in &assign.targets {
-            self.process_assignment_target(
-                target,
-                &assign.value,
-                assign.range.start().to_usize(),
-                contexts,
-            );
-        }
-    }
-
-    fn process_by_ident(
-        &self,
-        name: &Identifier,
-        value: &ast::Expr,
-        byte_offset: usize,
-        contexts: &mut Vec<SqlString>,
-    ) {
-        if self.is_sql_variable_name(name) {
-            if let Some(sql_content) = self.extract_string_content(value) {
-                contexts.push(SqlString {
-                    byte_offset,
-                    variable_name: name.to_string(),
-                    sql_content,
-                });
-            }
-        }
-    }
-
-    fn process_assignment_target(
-        &self,
-        target: &ast::Expr,
-        value: &ast::Expr,
-        byte_offset: usize,
-        contexts: &mut Vec<SqlString>,
-    ) {
-        match target {
-            ast::Expr::Name(name) => {
-                self.process_by_ident(&name.id, value, byte_offset, contexts);
-            }
-            ast::Expr::Attribute(att) => {
-                self.process_by_ident(&att.attr, value, byte_offset, contexts)
-            }
-            ast::Expr::Tuple(tuple) => {
-                self.handle_tuple_assignment(&tuple.elts, value, byte_offset, contexts);
-            }
-
-            ast::Expr::List(list) => {
-                self.handle_tuple_assignment(&list.elts, value, byte_offset, contexts);
-            }
-
-            // Other patterns like attribute access (obj.attr = ...) or subscript (arr[0] = ...)
-            _ => {
-                // Log unhandled patterns for debugging
-                debug!("Unhandled assignment target pattern: {:?}", target);
-            }
-        }
-    }
-    fn handle_tuple_assignment(
-        &self,
-        targets: &[ast::Expr],
-        value: &ast::Expr,
-        byte_offset: usize,
-        contexts: &mut Vec<SqlString>,
-    ) {
-        match value {
-            ast::Expr::Tuple(tuple_value) => {
-                self.process_paired_assignments(targets, &tuple_value.elts, byte_offset, contexts);
-            }
-            ast::Expr::List(list_value) => {
-                self.process_paired_assignments(targets, &list_value.elts, byte_offset, contexts);
-            }
-            _ => {}
-        }
-    }
-    fn process_paired_assignments(
-        &self,
-        targets: &[ast::Expr],
-        values: &[ast::Expr],
-        byte_offset: usize,
-        contexts: &mut Vec<SqlString>,
-    ) {
-        let mut value_idx = 0;
-
-        for target in targets.iter() {
-            if let ast::Expr::Starred(ast::ExprStarred {
-                value: starred_target,
-                ..
-            }) = target
-            {
-                let starred_count = values.len() - targets.len() + 1;
-                let consumed_values = &values[value_idx..value_idx + starred_count];
-                let new_list_expr = ast::Expr::List(ast::ExprList {
-                    range: TextRange::default(),
-                    elts: consumed_values.to_vec(),
-                    ctx: ast::ExprContext::Load,
-                });
-                self.process_assignment_target(
-                    starred_target,
-                    &new_list_expr,
-                    byte_offset,
-                    contexts,
-                );
-                value_idx += starred_count;
-            } else {
-                self.process_assignment_target(target, &values[value_idx], byte_offset, contexts);
-                value_idx += 1;
-            }
-        }
-    }
-
-    /// Extract string content from an expression (only handles string literals)
-    fn extract_string_content(&self, expr: &ast::Expr) -> Option<String> {
-        match expr {
-            ast::Expr::Constant(constant) => match &constant.value {
-                ast::Constant::Str(s) => Some(s.clone()),
-                _ => None,
-            },
-            _ => None,
         }
     }
 
@@ -289,9 +156,6 @@ impl fmt::Display for SqlExtract {
 
 impl Default for SearchCtx {
     fn default() -> Self {
-        Self {
-            var_assign: true,
-            multiple_var_assig: true,
-        }
+        Self { var_assign: true }
     }
 }
