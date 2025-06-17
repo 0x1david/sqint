@@ -16,25 +16,24 @@ pub enum LogLevel {
 }
 
 impl LogLevel {
-    fn as_str(&self) -> &'static str {
+    const fn as_str(self) -> &'static str {
         match self {
-            LogLevel::Always => "ALWAYS",
-            LogLevel::Error => "ERROR",
-            LogLevel::Warn => "WARN",
-            LogLevel::Info => "INFO",
-            LogLevel::Exception => "PROGRAMMING EXCEPTION",
-            LogLevel::Debug => "DEBUG",
+            Self::Always => "ALWAYS",
+            Self::Error => "ERROR",
+            Self::Warn => "WARN",
+            Self::Info => "INFO",
+            Self::Exception => "PROGRAMMING EXCEPTION",
+            Self::Debug => "DEBUG",
         }
     }
 
-    fn color_code(&self) -> &'static str {
+    const fn color_code(self) -> &'static str {
         match self {
-            LogLevel::Always => "\x1b[1;37m",  // Bold White
-            LogLevel::Error => "\x1b[31m",     // Red
-            LogLevel::Warn => "\x1b[33m",      // Yellow
-            LogLevel::Info => "\x1b[32m",      // Green
-            LogLevel::Exception => "\x1b[31m", // Red
-            LogLevel::Debug => "\x1b[36m",     // Cyan
+            Self::Always => "\x1b[1;37m",                // Bold White
+            Self::Error | Self::Exception => "\x1b[31m", // Red
+            Self::Warn => "\x1b[33m",                    // Yellow
+            Self::Info => "\x1b[32m",                    // Green
+            Self::Debug => "\x1b[36m",                   // Cyan
         }
     }
 }
@@ -73,8 +72,9 @@ impl Logger {
         HAS_ERROR_OCCURRED.load(Ordering::Relaxed)
     }
 
+    #[must_use]
     pub fn exit_code() -> i32 {
-        if Self::has_error_occurred() { 1 } else { 0 }
+        i32::from(Self::has_error_occurred())
     }
 }
 
