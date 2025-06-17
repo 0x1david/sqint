@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::formatters;
 use crate::{SqlFinder, SqlString};
-use logging::{always_log, debug, exception};
+use logging::{always_log, debug, except_none, except_ret, exception};
 use regex::Regex;
 use rustpython_parser::{
     ast::{self, Identifier, located::ExprBinOp},
@@ -66,10 +66,7 @@ impl SqlFinder {
             }
 
             // Other patterns like attribute access (obj.attr = ...) or subscript (arr[0] = ...)
-            _ => {
-                // Log unhandled patterns for debugging
-                debug!("Unhandled assignment target pattern: {:?}", target);
-            }
+            _ => exception!("Unhandled assignment target pattern: {:?}", target),
         }
     }
     fn handle_tuple_assignment(
@@ -86,7 +83,7 @@ impl SqlFinder {
             ast::Expr::List(list_value) => {
                 self.process_paired_assignments(targets, &list_value.elts, byte_offset, contexts);
             }
-            _ => {}
+            _ => exception!("Unhandled tuple assignment value: {:?}", value),
         }
     }
     fn process_paired_assignments(
@@ -130,10 +127,7 @@ impl SqlFinder {
         match expr {
             ast::Expr::Constant(c) => match &c.value {
                 ast::Constant::Str(s) => Some(s.clone()),
-                _ => {
-                    always_log!("Not a constant string: {:?}", c);
-                    None
-                }
+                _ => except_none!("constant string: {:?}", c),
             },
             ast::Expr::Name(n) => Some(format!("{{{}}}", n.id)),
             ast::Expr::FormattedValue(f) => Self::extract_string_content(&f.value),
@@ -145,10 +139,7 @@ impl SqlFinder {
                 })
             }),
 
-            _ => {
-                always_log!("Not a string literal: {:?}", expr);
-                None
-            }
+            _ => except_none!("Not a string literal: {:?}", expr),
         }
     }
     fn extract_from_bin_op(v: &ast::ExprBinOp<TextRange>) -> Option<String> {
@@ -168,8 +159,7 @@ impl SqlFinder {
                     ast::Expr::List(l) => l.elts.iter().map(extract_expr).collect(),
                     ast::Expr::Constant(c) => vec![extract_expr_const(c)],
                     otherwise => {
-                        always_log!("Unhandled rhs expr type: {:?}", otherwise);
-                        vec![]
+                        except_ret!(vec![], "Unhandled rhs expr type: {:?}", otherwise)
                     }
                 };
                 if let ConstType::Str(fmt_string) = expr_string {
@@ -177,20 +167,18 @@ impl SqlFinder {
                 }
                 None
             }
-            otherwise => {
-                always_log!("Unhandled binary operator: {:?}", otherwise);
-                None
-            }
+            otherwise => except_none!("Unhandled binary operator: {:?}", otherwise),
         }
     }
 }
 fn extract_expr(expr: &ast::Expr<TextRange>) -> ConstType {
     match expr {
         ast::Expr::Constant(v) => extract_expr_const(v),
-        _ => {
-            always_log!("Unhandled Constant");
-            ConstType::Unhandled
-        }
+        _ => except_ret!(
+            ConstType::Unhandled,
+            "Unhandled Expression for Extraction: {:?}",
+            expr
+        ),
     }
 }
 
@@ -201,7 +189,7 @@ fn extract_const(c: &ast::Constant) -> ConstType {
         ast::Constant::Bool(b) => ConstType::Bool(*b),
         ast::Constant::Float(f) => ConstType::Float(*f),
         ast::Constant::Tuple(t) => ConstType::Tuple(t.iter().map(extract_const).collect()),
-        _ => ConstType::Unhandled,
+        _ => except_ret!(ConstType::Unhandled, "Unhandled Constant: {:?}", c),
     }
 }
 
@@ -241,14 +229,10 @@ fn format_python_string(format_str: &str, values: &[ConstType]) -> Option<String
             'X' => formatters::format_value_as_hex(value, true),
             'c' => formatters::format_value_as_char(value),
             'p' => formatters::format_value_as_pointer(value),
-            _ => return None,
+            _ => except_none!("Unhandled format conversion specifier: {}", conversion),
         };
 
-        if let Some(replacement_str) = replacement {
-            result.replace_range(m.range(), &replacement_str);
-        } else {
-            return None;
-        }
+        result.replace_range(m.range(), &replacement?);
     }
     Some(result)
 }

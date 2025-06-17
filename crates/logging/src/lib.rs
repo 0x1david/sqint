@@ -11,7 +11,8 @@ pub enum LogLevel {
     Error = 1,
     Warn = 2,
     Info = 3,
-    Debug = 4,
+    Exception = 4,
+    Debug = 5,
 }
 
 impl LogLevel {
@@ -21,17 +22,19 @@ impl LogLevel {
             LogLevel::Error => "ERROR",
             LogLevel::Warn => "WARN",
             LogLevel::Info => "INFO",
+            LogLevel::Exception => "PROGRAMMING EXCEPTION",
             LogLevel::Debug => "DEBUG",
         }
     }
 
     fn color_code(&self) -> &'static str {
         match self {
-            LogLevel::Always => "\x1b[1;37m", // Bold White
-            LogLevel::Error => "\x1b[31m",    // Red
-            LogLevel::Warn => "\x1b[33m",     // Yellow
-            LogLevel::Info => "\x1b[32m",     // Green
-            LogLevel::Debug => "\x1b[36m",    // Cyan
+            LogLevel::Always => "\x1b[1;37m",  // Bold White
+            LogLevel::Error => "\x1b[31m",     // Red
+            LogLevel::Warn => "\x1b[33m",      // Yellow
+            LogLevel::Info => "\x1b[32m",      // Green
+            LogLevel::Exception => "\x1b[31m", // Red
+            LogLevel::Debug => "\x1b[36m",     // Cyan
         }
     }
 }
@@ -94,10 +97,31 @@ macro_rules! always_log {
     };
 }
 
+// TODO: Change exceptions later to LogLevel exception, currently always for ease of development
 #[macro_export]
 macro_rules! exception {
     ($($arg:tt)*) => {
-        $crate::log!($crate::LogLevel::Error, $($arg)*)
+        $crate::log!($crate::LogLevel::Always, $($arg)*)
+    };
+}
+
+#[macro_export]
+macro_rules! except_none {
+    ($($arg:tt)*) => {
+        {
+        $crate::log!($crate::LogLevel::Always, $($arg)*);
+        None
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! except_ret {
+    ($ret:expr, $($arg:tt)*) => {
+        {
+        $crate::log!($crate::LogLevel::Always, $($arg)*);
+        $ret
+        }
     };
 }
 

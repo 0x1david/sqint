@@ -1,3 +1,5 @@
+use logging::except_none;
+
 use crate::assign::ConstType;
 
 pub(crate) fn format_value_as_unsigned(value: &ConstType) -> Option<String> {
@@ -6,7 +8,7 @@ pub(crate) fn format_value_as_unsigned(value: &ConstType) -> Option<String> {
         ConstType::Float(f) => Some((*f as u64).to_string()),
         ConstType::Bool(b) => Some(if *b { "1".to_string() } else { "0".to_string() }),
         ConstType::Str(s) => s.parse::<u64>().ok().map(|i| i.to_string()),
-        _ => None,
+        _ => except_none!("Unhandled unsigned value formatting: {value}"),
     }
 }
 
@@ -15,7 +17,7 @@ pub(crate) fn format_value_as_binary(value: &ConstType) -> Option<String> {
         ConstType::Int(i) => i.parse::<i64>().ok().map(|i| format!("{:b}", i)),
         ConstType::Float(f) => Some(format!("{:b}", *f as i64)),
         ConstType::Bool(b) => Some(if *b { "1".to_string() } else { "0".to_string() }),
-        _ => None,
+        _ => except_none!("Unhandled binary value formatting: {value}"),
     }
 }
 
@@ -37,7 +39,7 @@ pub(crate) fn format_value_as_general(value: &ConstType, specifier: &str) -> Opt
             .parse::<f64>()
             .ok()
             .map(|f| format_general_float(f, precision, uppercase)),
-        _ => None,
+        _ => except_none!("Unhandled general value formatting: {value}"),
     }
 }
 fn format_general_float(f: f64, precision: usize, uppercase: bool) -> String {
@@ -91,7 +93,7 @@ pub(crate) fn format_value_as_float(value: &ConstType, specifier: &str) -> Optio
             .parse::<f64>()
             .ok()
             .map(|f| format!("{:.prec$}", f, prec = precision)),
-        _ => None,
+        _ => except_none!("Unhandled float value formatting: {value}"),
     }
 }
 
@@ -99,7 +101,7 @@ pub(crate) fn format_value_as_pointer(value: &ConstType) -> Option<String> {
     match value {
         ConstType::Int(i) => i.parse::<usize>().ok().map(|i| format!("0x{:x}", i)),
         ConstType::Float(f) => Some(format!("0x{:x}", *f as usize)),
-        _ => None,
+        _ => except_none!("Unhandled pointer value formatting: {value}"),
     }
 }
 
@@ -121,7 +123,7 @@ pub(crate) fn format_value_as_int(value: &ConstType) -> Option<String> {
         ConstType::Float(f) => Some((*f as i64).to_string()),
         ConstType::Bool(b) => Some(if *b { "1".to_string() } else { "0".to_string() }),
         ConstType::Str(s) => s.parse::<i64>().ok().map(|i| i.to_string()),
-        _ => None,
+        _ => except_none!("Unhandled integer value formatting: {value}"),
     }
 }
 
@@ -130,7 +132,7 @@ pub(crate) fn format_value_as_octal(value: &ConstType) -> Option<String> {
         ConstType::Int(i) => i.parse::<i64>().ok().map(|i| format!("{:o}", i)),
         ConstType::Float(f) => Some(format!("{:o}", *f as i64)),
         ConstType::Bool(b) => Some(if *b { "1".to_string() } else { "0".to_string() }),
-        _ => None,
+        _ => except_none!("Unhandled octal value formatting: {value}"),
     }
 }
 
@@ -149,7 +151,7 @@ pub(crate) fn format_value_as_hex(value: &ConstType, uppercase: bool) -> Option<
             format!("{:x}", *f as i64)
         }),
         ConstType::Bool(b) => Some(if *b { "1".to_string() } else { "0".to_string() }),
-        _ => None,
+        _ => except_none!("Unhandled hex value formatting: {value}"),
     }
 }
 pub(crate) fn format_value_as_scientific(value: &ConstType, specifier: &str) -> Option<String> {
@@ -186,7 +188,7 @@ pub(crate) fn format_value_as_scientific(value: &ConstType, specifier: &str) -> 
                 format!("{:.prec$e}", f, prec = precision)
             }
         }),
-        _ => None,
+        _ => except_none!("Unhandled scientific value formatting: {value}"),
     }
 }
 
@@ -207,6 +209,6 @@ pub(crate) fn format_value_as_char(value: &ConstType) -> Option<String> {
                 None
             }
         }
-        _ => None,
+        _ => except_none!("Unhandled char value formatting: {value}"),
     }
 }
