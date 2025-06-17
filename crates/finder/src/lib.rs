@@ -42,6 +42,7 @@ pub struct SqlFinder {
 }
 
 impl SqlFinder {
+    #[must_use]
     pub fn new(config: FinderConfig) -> Self {
         Self {
             config,
@@ -49,6 +50,7 @@ impl SqlFinder {
         }
     }
 
+    #[must_use]
     pub fn analyze_file(&self, file_path: &str) -> Option<SqlExtract> {
         let source_code = fs::read_to_string(file_path)
             .inspect_err(|e| error!("Failed to read file '{}': {}", file_path, e))
@@ -89,6 +91,7 @@ impl SqlFinder {
 }
 
 /// Collects and flattens all files in a list of files/directories
+#[must_use]
 pub fn collect_files(paths: &[PathBuf]) -> Vec<PathBuf> {
     debug!("{:?}", paths);
     paths
@@ -129,12 +132,13 @@ fn read_directory_files(dir_path: &Path) -> Vec<PathBuf> {
     }
 }
 
+#[must_use]
 pub fn is_python_file(file: &Path) -> bool {
     let b = file.extension().and_then(|ext| ext.to_str()) == Some("py");
-    if !b {
-        debug!("Not a python file {}", file.display());
-    } else {
+    if b {
         debug!("Reading a python file {}", file.display());
+    } else {
+        debug!("Not a python file {}", file.display());
     }
     b
 }
@@ -149,7 +153,7 @@ impl fmt::Display for SqlExtract {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "{}", self.file_path)?;
         for sql_string in &self.strings {
-            writeln!(f, "{}", sql_string)?;
+            writeln!(f, "{sql_string}")?;
         }
         Ok(())
     }

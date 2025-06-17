@@ -1,12 +1,9 @@
-use std::fmt::Display;
-
 use crate::formatters;
 use crate::{SqlFinder, SqlString};
-use logging::{always_log, debug, except_none, except_ret, exception};
+use logging::{except_none, except_ret, exception};
 use regex::Regex;
 use rustpython_parser::{
-    ast::{self, Identifier, located::ExprBinOp},
-    source_code::SourceRange,
+    ast::{self, Identifier},
     text_size::TextRange,
 };
 
@@ -56,7 +53,7 @@ impl SqlFinder {
                 self.process_by_ident(&name.id, value, byte_offset, contexts);
             }
             ast::Expr::Attribute(att) => {
-                self.process_by_ident(&att.attr, value, byte_offset, contexts)
+                self.process_by_ident(&att.attr, value, byte_offset, contexts);
             }
             ast::Expr::Tuple(tuple) => {
                 self.handle_tuple_assignment(&tuple.elts, value, byte_offset, contexts);
@@ -95,7 +92,7 @@ impl SqlFinder {
     ) {
         let mut value_idx = 0;
 
-        for target in targets.iter() {
+        for target in targets {
             if let ast::Expr::Starred(ast::ExprStarred {
                 value: starred_target,
                 ..
@@ -125,10 +122,13 @@ impl SqlFinder {
     /// Extract string content from an expression (only handles string literals)
     fn extract_string_content(expr: &ast::Expr) -> Option<String> {
         match expr {
-            ast::Expr::Constant(c) => match &c.value {
-                ast::Constant::Str(s) => Some(s.clone()),
-                _ => except_none!("constant string: {:?}", c),
-            },
+            ast::Expr::Constant(c) => {
+                if let ast::Constant::Str(s) = &c.value {
+                    Some(s.clone())
+                } else {
+                    except_none!("constant string: {:?}", c)
+                }
+            }
             ast::Expr::Name(n) => Some(format!("{{{}}}", n.id)),
             ast::Expr::FormattedValue(f) => Self::extract_string_content(&f.value),
             ast::Expr::BinOp(b) => Self::extract_from_bin_op(b),
@@ -172,13 +172,14 @@ impl SqlFinder {
     }
 }
 fn extract_expr(expr: &ast::Expr<TextRange>) -> ConstType {
-    match expr {
-        ast::Expr::Constant(v) => extract_expr_const(v),
-        _ => except_ret!(
+    if let ast::Expr::Constant(v) = expr {
+        extract_expr_const(v)
+    } else {
+        except_ret!(
             ConstType::Unhandled,
             "Unhandled Expression for Extraction: {:?}",
             expr
-        ),
+        )
     }
 }
 
@@ -244,7 +245,7 @@ fn format_python_string(format_str: &str, values: &[ConstType]) -> Option<String
 // // Result: Some("select * from users where id = 123")
 
 #[derive(Debug)]
-pub(crate) enum ConstType {
+pub enum ConstType {
     Str(String),
     Int(String),
     Float(f64),
@@ -255,22 +256,22 @@ pub(crate) enum ConstType {
 impl std::fmt::Display for ConstType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ConstType::Str(s) => write!(f, "{}", s),
-            ConstType::Int(i) => write!(f, "{}", i),
-            ConstType::Float(fl) => write!(f, "{}", fl),
+            Self::Str(s) => write!(f, "{s}"),
+            Self::Int(i) => write!(f, "{i}"),
+            Self::Float(fl) => write!(f, "{fl}"),
             // Using numeric booleans for maximum db compatibility
-            ConstType::Bool(b) => write!(f, "{}", if *b { "1" } else { "0" }),
-            ConstType::Tuple(t) => {
+            Self::Bool(b) => write!(f, "{}", if *b { "1" } else { "0" }),
+            Self::Tuple(t) => {
                 write!(f, "(")?;
                 for (i, item) in t.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{}", item)?;
+                    write!(f, "{item}")?;
                 }
                 write!(f, ")")
             }
-            ConstType::Unhandled => write!(f, "<unhandled>"),
+            Self::Unhandled => write!(f, "<unhandled>"),
         }
     }
 }
