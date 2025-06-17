@@ -144,7 +144,8 @@ impl SqlFinder {
                     except_none!("constant string: {:?}", c)
                 }
             }
-            ast::Expr::Name(n) => Some(format!("{{{}}}", n.id)),
+            ast::Expr::Name(_) => Some(format!("{{{}}}", "PLACEHOLDER")),
+            ast::Expr::Call(c) => Self::extract_from_call(c),
             ast::Expr::FormattedValue(f) => Self::extract_string_content(&f.value),
             ast::Expr::BinOp(b) => Self::extract_from_bin_op(b),
             ast::Expr::JoinedStr(j) => j.values.iter().try_fold(String::new(), |mut acc, val| {
@@ -183,6 +184,20 @@ impl SqlFinder {
                 None
             }
             otherwise => except_none!("Unhandled binary operator: {:?}", otherwise),
+        }
+    }
+
+    fn extract_from_call(v: &ast::ExprCall<TextRange>) -> Option<String> {
+        dbg!(v);
+
+        match &*v.func {
+            ast::Expr::Attribute(ast::ExprAttribute { attr, value, .. })
+                if attr.as_str() == "format" =>
+            {
+                None
+                // Self::analyze_assignment(&self, assign, contexts);
+            }
+            _ => Some(format!("{{{}}}", "PLACEHOLDER")),
         }
     }
 }

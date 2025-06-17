@@ -528,7 +528,7 @@ Sql = "DELETE FROM cache"
 table = "users"
 query = f"select * from {table}"
             "#,
-            vec![("query", "select * from {table}")],
+            vec![("query", "select * from {PLACEHOLDER}")],
             "f-string simple variable substitution",
         );
     }
@@ -541,7 +541,10 @@ table = "users"
 status = "active"
 query = f"select * from {table} where status = '{status}'"
             "#,
-            vec![("query", "select * from {table} where status = '{status}'")],
+            vec![(
+                "query",
+                "select * from {PLACEHOLDER} where status = '{PLACEHOLDER}'",
+            )],
             "f-string multiple variables substitution",
         );
     }
@@ -554,7 +557,10 @@ table = "products"
 min_price = 100
 query = f"select * from {table} where price > {min_price}"
             "#,
-            vec![("query", "select * from {table} where price > {min_price}")],
+            vec![(
+                "query",
+                "select * from {PLACEHOLDER} where price > {PLACEHOLDER}",
+            )],
             "f-string with number substitution",
         );
     }
@@ -698,7 +704,7 @@ query = "select * from %s where price > %.2f and quantity = %d" % ("products", 9
 table_name = "UsErS"
 query = f"select * from {table_name.lower()}"
             "#,
-            vec![("query", "select * from users")],
+            vec![("query", "select * from {PLACEHOLDER}")],
             "f-string with method call substitution",
         );
     }
@@ -764,7 +770,7 @@ include_deleted = False
 table_suffix = "_all" if include_deleted else ""
 query = f"select * from users{table_suffix}"
             "#,
-            vec![("query", "select * from users{table_suffix}")],
+            vec![("query", "select * from users{PLACEHOLDER}")],
             "f-string with conditional substitution",
         );
     }
