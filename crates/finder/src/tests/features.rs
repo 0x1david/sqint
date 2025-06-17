@@ -6,7 +6,7 @@ mod tests {
         ast::{self},
     };
 
-    fn create_test_finder() -> SqlFinder {
+    fn harness_create_test_finder() -> SqlFinder {
         SqlFinder::new(FinderConfig {
             variables: vec![
                 "query".to_string(),
@@ -17,9 +17,9 @@ mod tests {
         })
     }
 
-    fn find_harness(code: &str, expected: Vec<(&str, &str)>, name: &str) {
+    fn harness_find(code: &str, expected: Vec<(&str, &str)>, name: &str) {
         let parsed = ast::Suite::parse(code, "test.py").expect("Failed to parse");
-        let finder = create_test_finder();
+        let finder = harness_create_test_finder();
         let mut contexts = Vec::new();
         finder.analyze_stmts(&parsed, &mut contexts);
 
@@ -56,7 +56,7 @@ mod tests {
 
     #[test]
     fn simple_assignment() {
-        find_harness(
+        harness_find(
             r#"query = "SELECT id, name FROM users WHERE active = 1""#,
             vec![("query", "SELECT id, name FROM users WHERE active = 1")],
             "simple assignment",
@@ -65,7 +65,7 @@ mod tests {
 
     #[test]
     fn multiple_assignment() {
-        find_harness(
+        harness_find(
             r#"query = sql = "UPDATE users SET last_login = NOW()""#,
             vec![
                 ("query", "UPDATE users SET last_login = NOW()"),
@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn chained_multiple_assignment() {
-        find_harness(
+        harness_find(
             r#"query = sql = query = "DELETE FROM sessions WHERE expires_at < NOW()""#,
             vec![
                 ("query", "DELETE FROM sessions WHERE expires_at < NOW()"),
@@ -90,7 +90,7 @@ mod tests {
 
     #[test]
     fn tuple_assignment() {
-        find_harness(
+        harness_find(
             r#"(query, sql) = ("SELECT * FROM users", "SELECT * FROM orders WHERE status = 'pending'")"#,
             vec![
                 ("query", "SELECT * FROM users"),
@@ -102,7 +102,7 @@ mod tests {
 
     #[test]
     fn list_assignment() {
-        find_harness(
+        harness_find(
             r#"[query, sql] = ["SELECT COUNT(*) FROM products", "INSERT INTO audit_log (action, timestamp) VALUES ('login', NOW())"]"#,
             vec![
                 ("query", "SELECT COUNT(*) FROM products"),
@@ -117,7 +117,7 @@ mod tests {
 
     #[test]
     fn mixed_tuple_list() {
-        find_harness(
+        harness_find(
             r#"(query, sql) = ["SELECT * FROM cache WHERE key = ?", "UPDATE cache SET value = ?, updated_at = NOW() WHERE key = ?"]"#,
             vec![
                 ("query", "SELECT * FROM cache WHERE key = ?"),
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn nested_tuple_assignment() {
-        find_harness(
+        harness_find(
             r#"((query, sql), query) = (("SELECT u.* FROM users u", "SELECT r.* FROM roles r"), "SELECT * FROM admins WHERE permissions LIKE '%super%'")"#,
             vec![
                 ("query", "SELECT u.* FROM users u"),
@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn deep_nested_assignment() {
-        find_harness(
+        harness_find(
             r#"(((query, sql), query), sql) = ((("SELECT 1", "SELECT 2"), "SELECT 3"), "SELECT 4")"#,
             vec![
                 ("query", "SELECT 1"),
@@ -162,7 +162,7 @@ mod tests {
 
     #[test]
     fn attribute_assignment() {
-        find_harness(
+        harness_find(
             r#"database.query = "SELECT u.id, u.email, p.name FROM users u JOIN profiles p ON u.id = p.user_id""#,
             vec![(
                 "query",
@@ -174,7 +174,7 @@ mod tests {
 
     #[test]
     fn class_attribute_assignment() {
-        find_harness(
+        harness_find(
             r#"UserModel.sql = "SELECT id, created_at, updated_at FROM users""#,
             vec![("sql", "SELECT id, created_at, updated_at FROM users")],
             "class attribute assignment",
@@ -183,7 +183,7 @@ mod tests {
 
     #[test]
     fn nested_attribute_assignment() {
-        find_harness(
+        harness_find(
             r#"app.db.queries.sql = "SELECT * FROM users WHERE deleted_at IS NULL""#,
             vec![("sql", "SELECT * FROM users WHERE deleted_at IS NULL")],
             "nested attribute assignment",
@@ -192,7 +192,7 @@ mod tests {
 
     #[test]
     fn subscript_assignment() {
-        find_harness(
+        harness_find(
             r#"queries["query"] = "SELECT * FROM users WHERE username = ? OR email = ?""#,
             vec![], // Subscripts not currently handled
             "subscript assignment",
@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn starred_assignment_beginning() {
-        find_harness(
+        harness_find(
             r#"*rest, query = ["SELECT 1", "SELECT 2", "SELECT * FROM users ORDER BY created_at DESC"]"#,
             vec![("query", "SELECT * FROM users ORDER BY created_at DESC")],
             "starred assignment at beginning",
@@ -210,7 +210,7 @@ mod tests {
 
     #[test]
     fn starred_assignment_middle() {
-        find_harness(
+        harness_find(
             r#"query, *middle, sql = ["SELECT 1", "SELECT 2", "SELECT 3", "SELECT * FROM orders"]"#,
             vec![("query", "SELECT 1"), ("sql", "SELECT * FROM orders")],
             "starred assignment in middle",
@@ -219,7 +219,7 @@ mod tests {
 
     #[test]
     fn starred_assignment_end() {
-        find_harness(
+        harness_find(
             r#"query, *rest = ["SELECT u.*, COUNT(o.id) as order_count FROM users u LEFT JOIN orders o ON u.id = o.user_id GROUP BY u.id", "SELECT 1", "SELECT 2"]"#,
             vec![(
                 "query",
@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn mixed_names_and_attributes() {
-        find_harness(
+        harness_find(
             r#"query, obj.sql = ("SELECT * FROM local_users", "SELECT * FROM remote_users WHERE sync_status = 'pending'")"#,
             vec![
                 ("query", "SELECT * FROM local_users"),
@@ -246,7 +246,7 @@ mod tests {
 
     #[test]
     fn mixed_starred_and_regular() {
-        find_harness(
+        harness_find(
             r#"query, *middle, sql = ("SELECT * FROM primary_table", "SELECT * FROM secondary1", "SELECT * FROM secondary2", "SELECT * FROM fallback_table")"#,
             vec![
                 ("query", "SELECT * FROM primary_table"),
@@ -274,7 +274,7 @@ mod tests {
             LIMIT 100
             "#;
 
-        find_harness(
+        harness_find(
             &format!(r#"query = """{}""""#, expected_sql),
             vec![("query", expected_sql)],
             "multiline string assignment",
@@ -283,7 +283,7 @@ mod tests {
 
     #[test]
     fn single_quoted_sql() {
-        find_harness(
+        harness_find(
             r#"sql = 'SELECT * FROM products WHERE category = "electronics" AND price > 100'"#,
             vec![(
                 "sql",
@@ -295,7 +295,7 @@ mod tests {
 
     #[test]
     fn raw_string_with_escapes() {
-        find_harness(
+        harness_find(
             r#"query = r"SELECT * FROM logs WHERE message REGEXP '^Error.*\d{4}-\d{2}-\d{2}'""#,
             vec![(
                 "query",
@@ -319,7 +319,7 @@ WHERE u.status = 'active'  -- Only active users
 GROUP BY u.id, u.username
             "#;
 
-        find_harness(
+        harness_find(
             &format!(r#"sql = """{}""""#, expected_sql),
             vec![("sql", expected_sql)],
             "SQL with comments",
@@ -328,7 +328,7 @@ GROUP BY u.id, u.username
 
     #[test]
     fn stored_procedure_calls() {
-        find_harness(
+        harness_find(
             r#"query = "CALL get_user_analytics(?, ?, @result)""#,
             vec![("query", "CALL get_user_analytics(?, ?, @result)")],
             "stored procedure call",
@@ -337,11 +337,11 @@ GROUP BY u.id, u.username
 
     #[test]
     fn ddl_statements() {
-        find_harness(
+        harness_find(
             r#"
-                query = "CREATE TABLE temp_analytics (id INT PRIMARY KEY, data JSON)"
-                sql = "ALTER TABLE users ADD COLUMN last_activity TIMESTAMP"
-                query = "DROP TABLE IF EXISTS temp_results"
+query = "CREATE TABLE temp_analytics (id INT PRIMARY KEY, data JSON)"
+sql = "ALTER TABLE users ADD COLUMN last_activity TIMESTAMP"
+query = "DROP TABLE IF EXISTS temp_results"
             "#,
             vec![
                 (
@@ -360,12 +360,12 @@ GROUP BY u.id, u.username
 
     #[test]
     fn empty_sql_string() {
-        find_harness(r#"sql = """#, vec![("sql", "")], "empty SQL string");
+        harness_find(r#"sql = """#, vec![("sql", "")], "empty SQL string");
     }
 
     #[test]
     fn annotation_assignment() {
-        find_harness(
+        harness_find(
             r#"query: str = "SELECT * FROM users WHERE age > 18""#,
             vec![("query", "SELECT * FROM users WHERE age > 18")],
             "annotated assignment",
@@ -374,7 +374,7 @@ GROUP BY u.id, u.username
 
     #[test]
     fn class_method_assignment() {
-        find_harness(
+        harness_find(
             r#"
 class UserDAO:
     def __init__(self):
@@ -391,7 +391,7 @@ class UserDAO:
 
     #[test]
     fn function_local_assignment() {
-        find_harness(
+        harness_find(
             r#"
 def get_users():
     query = "SELECT * FROM users"
@@ -408,7 +408,7 @@ def get_users():
 
     #[test]
     fn conditional_assignment() {
-        find_harness(
+        harness_find(
             r#"
 if condition:
     query = "SELECT * FROM users WHERE role = 'admin'"
@@ -425,7 +425,7 @@ else:
 
     #[test]
     fn loop_assignment() {
-        find_harness(
+        harness_find(
             r#"
 for table in tables:
     # This will be detected:
@@ -438,7 +438,7 @@ for table in tables:
 
     #[test]
     fn exception_handling_assignment() {
-        find_harness(
+        harness_find(
             r#"
 try:
     query = "SELECT * FROM users WHERE complex_condition = true"
@@ -458,7 +458,7 @@ except Exception:
 
     #[test]
     fn global_assignment() {
-        find_harness(
+        harness_find(
             r#"
 global query
 query = "SELECT * FROM global_config"
@@ -470,7 +470,7 @@ query = "SELECT * FROM global_config"
 
     #[test]
     fn mixed_query_and_sql() {
-        find_harness(
+        harness_find(
             r#"
 query = "SELECT * FROM users"
 sql = "INSERT INTO logs (message) VALUES (?)"
@@ -489,7 +489,7 @@ sql = "DELETE FROM temp_data"
 
     #[test]
     fn case_sensitive_patterns() {
-        find_harness(
+        harness_find(
             r#"
 QUERY = "SELECT * FROM users"
 SQL = "INSERT INTO logs VALUES (?)"
@@ -508,7 +508,7 @@ Sql = "DELETE FROM cache"
 
     #[test]
     fn complex_nesting_patterns() {
-        find_harness(
+        harness_find(
             r#"
 ((query, sql), (query, sql)) = (("SELECT 1", "SELECT 2"), ("SELECT 3", "SELECT 4"))
             "#,
@@ -523,7 +523,7 @@ Sql = "DELETE FROM cache"
     }
     #[test]
     fn f_string_simple() {
-        find_harness(
+        harness_find(
             r#"
 table = "users"
 query = f"select * from {table}"
@@ -535,7 +535,7 @@ query = f"select * from {table}"
 
     #[test]
     fn f_string_multiple_vars() {
-        find_harness(
+        harness_find(
             r#"
 table = "users"
 status = "active"
@@ -548,7 +548,7 @@ query = f"select * from {table} where status = '{status}'"
 
     #[test]
     fn f_string_with_numbers() {
-        find_harness(
+        harness_find(
             r#"
 table = "products"
 min_price = 100
@@ -561,7 +561,7 @@ query = f"select * from {table} where price > {min_price}"
 
     #[test]
     fn percent_formatting_positional() {
-        find_harness(
+        harness_find(
             r#"
 query = "select * from %s where id = %d" % ("users", 123)
             "#,
@@ -572,7 +572,7 @@ query = "select * from %s where id = %d" % ("users", 123)
 
     #[test]
     fn percent_formatting_named() {
-        find_harness(
+        harness_find(
             r#"
 query = "select * from %(table)s where status = '%(status)s'" % {"table": "users", "status": "active"}
             "#,
@@ -583,7 +583,7 @@ query = "select * from %(table)s where status = '%(status)s'" % {"table": "users
 
     #[test]
     fn format_method_positional() {
-        find_harness(
+        harness_find(
             r#"
 query = "select * from {} where status = '{}'".format("users", "active")
             "#,
@@ -594,7 +594,7 @@ query = "select * from {} where status = '{}'".format("users", "active")
 
     #[test]
     fn format_method_named() {
-        find_harness(
+        harness_find(
             r#"
 query = "select * from {table} where status = '{status}'".format(table="users", status="active")
             "#,
@@ -605,7 +605,7 @@ query = "select * from {table} where status = '{status}'".format(table="users", 
 
     #[test]
     fn format_method_numbered() {
-        find_harness(
+        harness_find(
             r#"
 query = "select * from {0} where id = {1}".format("users", 123)
             "#,
@@ -616,7 +616,7 @@ query = "select * from {0} where id = {1}".format("users", 123)
 
     #[test]
     fn multiline_f_string() {
-        find_harness(
+        harness_find(
             r#"
 table = "users"
 status = "active"
@@ -639,7 +639,7 @@ query = f"""
 
     #[test]
     fn complex_format_with_join() {
-        find_harness(
+        harness_find(
             r#"
 columns = ["id", "name", "email"]
 table = "users"
@@ -652,7 +652,7 @@ query = "select {} from {}".format(", ".join(columns), table)
 
     #[test]
     fn nested_f_string_expressions() {
-        find_harness(
+        harness_find(
             r#"
 base_table = "user"
 query = f"select * from {base_table + 's'} where id > {10 * 5}"
@@ -664,7 +664,7 @@ query = f"select * from {base_table + 's'} where id > {10 * 5}"
 
     #[test]
     fn format_with_dictionary_unpacking() {
-        find_harness(
+        harness_find(
             r#"
 params = {"table": "orders", "status": "pending", "limit": 50}
 query = "select * from {table} where status = '{status}' limit {limit}".format(**params)
@@ -679,7 +679,7 @@ query = "select * from {table} where status = '{status}' limit {limit}".format(*
 
     #[test]
     fn percent_with_mixed_types() {
-        find_harness(
+        harness_find(
             r#"
 query = "select * from %s where price > %.2f and quantity = %d" % ("products", 99.99, 10)
             "#,
@@ -693,7 +693,7 @@ query = "select * from %s where price > %.2f and quantity = %d" % ("products", 9
 
     #[test]
     fn f_string_with_method_calls() {
-        find_harness(
+        harness_find(
             r#"
 table_name = "UsErS"
 query = f"select * from {table_name.lower()}"
@@ -705,7 +705,7 @@ query = f"select * from {table_name.lower()}"
 
     #[test]
     fn format_with_list_indexing() {
-        find_harness(
+        harness_find(
             r#"
 tables = ["users", "orders", "products"]
 query = "select * from {} join {} on users.id = orders.user_id".format(tables[0], tables[1])
@@ -720,7 +720,7 @@ query = "select * from {} join {} on users.id = orders.user_id".format(tables[0]
 
     #[test]
     fn nested_format_calls() {
-        find_harness(
+        harness_find(
             r#"
 table = "users"
 condition = "status = '{}'".format("active")
@@ -733,7 +733,7 @@ query = "select * from {} where {}".format(table, condition)
 
     #[test]
     fn f_string_with_dictionary_access() {
-        find_harness(
+        harness_find(
             r#"
 config = {"table": "customers", "limit": 100}
 query = f"select * from {config['table']} limit {config['limit']}"
@@ -745,7 +745,7 @@ query = f"select * from {config['table']} limit {config['limit']}"
 
     #[test]
     fn format_with_string_operations() {
-        find_harness(
+        harness_find(
             r#"
 prefix = "temp_"
 table = "users"
@@ -758,20 +758,20 @@ query = "select * from {}".format(prefix + table)
 
     #[test]
     fn conditional_f_string() {
-        find_harness(
+        harness_find(
             r#"
 include_deleted = False
 table_suffix = "_all" if include_deleted else ""
 query = f"select * from users{table_suffix}"
             "#,
-            vec![("query", "select * from users")],
+            vec![("query", "select * from users{table_suffix}")],
             "f-string with conditional substitution",
         );
     }
 
     #[test]
     fn format_with_arithmetic() {
-        find_harness(
+        harness_find(
             r#"
 base_limit = 50
 multiplier = 2

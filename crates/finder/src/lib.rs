@@ -1,7 +1,7 @@
 mod assign;
 mod formatters;
 mod tests;
-use logging::{debug, error};
+use logging::{debug, error, exception};
 use rustpython_parser::{
     Parse,
     ast::{self},
@@ -71,14 +71,27 @@ impl SqlFinder {
 
     pub(crate) fn analyze_stmts(&self, suite: &ast::Suite, contexts: &mut Vec<SqlString>) {
         for stmt in suite {
-            match dbg!(stmt) {
+            match stmt {
                 ast::Stmt::Assign(a) if self.ctx.var_assign => {
                     self.analyze_assignment(a, contexts);
                 }
                 ast::Stmt::AnnAssign(a) if self.ctx.var_assign => {
                     self.analyze_annotated_assignment(a, contexts);
                 }
-                _ => {} // TODO: Add more query detection contexts
+                ast::Stmt::Try(t) => {
+                    self.analyze_stmts(&t.body, contexts);
+
+                    t.handlers
+                        .iter()
+                        .filter_map(|h| h.as_except_handler())
+                        .for_each(|h| self.analyze_stmts(&h.body, contexts));
+
+                    self.analyze_stmts(&t.orelse, contexts);
+                    self.analyze_stmts(&t.finalbody, contexts);
+                }
+                _ => {
+                    exception!("Unimplemented stmt: {:?}", suite)
+                } // TODO: Add more query detection contexts
             }
         }
     }
