@@ -23,6 +23,21 @@ impl SqlFinder {
         }
     }
 
+    pub(super) fn analyze_annotated_assignment(
+        &self,
+        assign: &ast::StmtAnnAssign,
+        contexts: &mut Vec<SqlString>,
+    ) {
+        if let Some(val) = &assign.value {
+            self.process_assignment_target(
+                &assign.target,
+                val,
+                assign.range.start().to_usize(),
+                contexts,
+            );
+        }
+    }
+
     fn process_by_ident(
         &self,
         name: &Identifier,

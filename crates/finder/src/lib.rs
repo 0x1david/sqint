@@ -71,9 +71,12 @@ impl SqlFinder {
 
     pub(crate) fn analyze_stmts(&self, suite: &ast::Suite, contexts: &mut Vec<SqlString>) {
         for stmt in suite {
-            match stmt {
-                ast::Stmt::Assign(assign) if self.ctx.var_assign => {
-                    self.analyze_assignment(assign, contexts);
+            match dbg!(stmt) {
+                ast::Stmt::Assign(a) if self.ctx.var_assign => {
+                    self.analyze_assignment(a, contexts);
+                }
+                ast::Stmt::AnnAssign(a) if self.ctx.var_assign => {
+                    self.analyze_annotated_assignment(a, contexts);
                 }
                 _ => {} // TODO: Add more query detection contexts
             }
