@@ -41,14 +41,14 @@ fn handle_check(args: &CheckArgs, config: &Config, cli: &Cli) {
         .iter()
         .filter(|f| finder::is_python_file(f))
         .filter_map(|f| f.to_str())
-        .flat_map(|p| sql_finder.analyze_file(p))
+        .filter_map(|p| sql_finder.analyze_file(p))
         .collect();
 
     let anlyzer = analyzer::SqlAnalyzer::new(analyzer::SqlDialect::Generic);
-    sqls.iter().for_each(|e| {
-        debug!("{}", e);
-        anlyzer.analyze_sql_extract(e);
-    });
+    for s in &sqls {
+        debug!("{}", s);
+        anlyzer.analyze_sql_extract(s);
+    }
 }
 
 fn setup_logging(cli: &Cli, debug: bool) {
@@ -66,15 +66,15 @@ fn setup_logging(cli: &Cli, debug: bool) {
 }
 
 fn load_config(cli: &Cli) -> Config {
-    match &cli.config {
-        Some(config_path) => Config::from_file(config_path).unwrap_or_default(),
-        None => {
+    cli.config.as_ref().map_or_else(
+        || {
             let mut cwd = env::current_dir().expect("Not able to read current working directory.");
             cwd.push(DEFAULT_CONFIG_NAME);
             let cfg = Config::from_file(cwd);
             cfg.unwrap_or_default()
-        }
-    }
+        },
+        |config_path| Config::from_file(config_path).unwrap_or_default(),
+    )
 }
 
 fn handle_init() {
@@ -94,7 +94,7 @@ fn handle_config(args: &ConfigArgs, config: &Config) {
     if args.list_variables {
         println!("Variables that will be analyzed:");
         for var in &config.variable_names {
-            println!("  - {}", var);
+            println!("  - {var}");
         }
     }
 }

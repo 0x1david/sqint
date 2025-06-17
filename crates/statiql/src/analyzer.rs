@@ -17,20 +17,19 @@ pub struct SqlAnalyzer {
 }
 
 impl SqlAnalyzer {
-    pub fn new(dialect: SqlDialect) -> Self {
+    pub const fn new(dialect: SqlDialect) -> Self {
         Self { dialect }
     }
 
     pub fn analyze_sql_extract(&self, extract: &SqlExtract) {
         if extract.strings.is_empty() {
-            debug!("Empty extract `{}`", extract.file_path)
+            debug!("Empty extract `{}`", extract.file_path);
         }
 
         extract
             .strings
             .iter()
-            .map(|sql_string| self.analyze_sql_string(sql_string))
-            .collect()
+            .for_each(|sql_string| self.analyze_sql_string(sql_string));
     }
 
     fn analyze_sql_string(&self, sql_string: &SqlString) {
@@ -43,7 +42,7 @@ impl SqlAnalyzer {
                     "Invalid sql string: `{}` => {}",
                     sql_string.sql_content,
                     SqlError::from_parser_error(e).reason
-                )
+                );
             }
         }
     }
@@ -67,11 +66,11 @@ struct SqlError {
 }
 
 impl SqlError {
-    fn new(reason: String, line: usize, col: usize) -> Self {
-        SqlError { reason, line, col }
+    const fn new(reason: String, line: usize, col: usize) -> Self {
+        Self { reason, line, col }
     }
 
-    fn from_parser_error(e: ParserError) -> SqlError {
+    fn from_parser_error(e: ParserError) -> Self {
         match e {
             ParserError::ParserError(msg) | ParserError::TokenizerError(msg) => {
                 let line_marker = " at Line: ";
@@ -94,10 +93,10 @@ impl SqlError {
                 let column = msg[col_num_start..].parse().unwrap_or(0);
 
                 let reason_msg = msg[..line_start_idx].to_string();
-                SqlError::new(reason_msg, line, column)
+                Self::new(reason_msg, line, column)
             }
             ParserError::RecursionLimitExceeded => {
-                SqlError::new("Recursion Limit Exceeded".to_string(), 0, 0)
+                Self::new("Recursion Limit Exceeded".to_string(), 0, 0)
             }
         }
     }

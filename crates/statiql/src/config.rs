@@ -6,6 +6,7 @@ pub const DEFAULT_CONFIG_NAME: &str = "statiql-config.toml";
 pub const DEFAULT_CONFIG: &str = include_str!("./assets/default.toml");
 
 /// Configuration for SQL detection
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -65,7 +66,7 @@ impl Config {
     /// Load configuration from a TOML file
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, ConfigError> {
         let content = fs::read_to_string(path)
-            .map_err(|e| ConfigError::Io(format!("Failed to read config file: {}", e)))?;
+            .map_err(|e| ConfigError::Io(format!("Failed to read config file: {e}")))?;
 
         Self::from_toml(&content)
     }
@@ -73,7 +74,7 @@ impl Config {
     /// Parse configuration from TOML string
     pub fn from_toml(toml_content: &str) -> Result<Self, ConfigError> {
         toml::from_str(toml_content)
-            .map_err(|e| ConfigError::Parse(format!("Failed to parse TOML: {}", e)))
+            .map_err(|e| ConfigError::Parse(format!("Failed to parse TOML: {e}")))
     }
 }
 
