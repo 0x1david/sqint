@@ -565,7 +565,7 @@ query = f"select * from {table} where price > {min_price}"
             r#"
 query = "select * from %s where id = %d" % ("users", 123)
             "#,
-            vec![("query", "select * from {users} where id = {123}")],
+            vec![("query", "select * from users where id = 123")],
             "percent formatting positional substitution",
         );
     }

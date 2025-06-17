@@ -1,4 +1,5 @@
 mod assign;
+mod formatters;
 mod tests;
 use logging::{debug, error};
 use rustpython_parser::{
