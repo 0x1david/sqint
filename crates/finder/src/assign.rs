@@ -2,6 +2,7 @@ use crate::formatters;
 use crate::{SqlFinder, SqlString};
 use logging::{except_none, except_ret, exception};
 use regex::Regex;
+use rustpython_parser::ast::ExprCall;
 use rustpython_parser::{
     ast::{self, Identifier},
     text_size::TextRange,
@@ -194,13 +195,49 @@ impl SqlFinder {
             ast::Expr::Attribute(ast::ExprAttribute { attr, value, .. })
                 if attr.as_str() == "format" =>
             {
-                None
-                // Self::analyze_assignment(&self, assign, contexts);
+                extract_format_call(&v.args, &v.keywords, value)
             }
             _ => Some(format!("{{{}}}", "PLACEHOLDER")),
         }
     }
 }
+
+fn extract_format_call(
+    args: &[ast::Expr],
+    kwargs: &[ast::Keyword],
+    value: &ast::Expr,
+) -> Option<String> {
+    let mut pos_fills = vec![];
+    let mut kw_fills = vec![];
+
+    for a in args {
+        let parsed = match a {
+            ast::Expr::Constant(c) => extract_expr_const(c),
+            _ => except_ret!(ConstType::Unhandled, "Unhandled value in args: {:?}", a),
+        };
+        pos_fills.push(parsed.to_string())
+    }
+
+    for kw in kwargs {
+        let name = kw.arg.as_ref().map(|v| v.to_string())?;
+        let val = extract_expr(&kw.value);
+        kw_fills.push((name, val))
+    }
+
+    dbg!(&pos_fills);
+
+    let mut result = extract_expr(value).to_string();
+    for f in &pos_fills {
+        result = result.replacen("{}", f, 1);
+    }
+
+    for (kw, val) in &kw_fills {
+        let pat = format!("{{{}}}", kw);
+        result = result.replace(&pat, &val.to_string());
+    }
+    result.into()
+}
+
 fn extract_expr(expr: &ast::Expr<TextRange>) -> ConstType {
     if let ast::Expr::Constant(v) = expr {
         extract_expr_const(v)
