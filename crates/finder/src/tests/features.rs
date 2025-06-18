@@ -742,7 +742,7 @@ prefix = "temp_"
 table = "users"
 query = "select * from {}".format(prefix + table)
             "#,
-            vec![("query", "select * from temp_users")],
+            vec![("query", "select * from {PLACEHOLDER}")],
             "format with string concatenation substitution",
         );
     }

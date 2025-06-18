@@ -1,4 +1,4 @@
-use std::ops::Add;
+use std::ops::{Add, Div, Mul, Sub};
 
 use crate::formatters;
 use crate::{SqlFinder, SqlString};
@@ -199,25 +199,38 @@ impl SqlFinder {
                 }
                 None
             }
-            ast::Operator::Add => {
-                let lhs = match &*v.left {
-                    ast::Expr::Constant(c) => extract_expr_const(c),
-                    otherwise => {
-                        bail!(None, "Expected format string on LHS, got: {:?}", otherwise);
-                    }
-                };
-
-                let rhs = match &*v.right {
-                    ast::Expr::Constant(c) => extract_expr_const(c),
-                    otherwise => {
-                        bail!(None, "Expected format string on LHS, got: {:?}", otherwise);
-                    }
-                };
-                let res = lhs + rhs;
-                Some(res?.to_string())
-            }
-            otherwise => bail_with!(None, "Unhandled binary operator: {:?}", otherwise),
+            otherwise => Self::extract_from_arithmetic(&v.left, &v.right, *otherwise),
         }
+    }
+    fn extract_from_arithmetic(
+        lhs: &ast::Expr,
+        rhs: &ast::Expr,
+        op: ast::Operator,
+    ) -> Option<String> {
+        let lhs = match lhs {
+            ast::Expr::Constant(c) => extract_expr_const(c),
+            ast::Expr::Name(_) => ConstType::Placeholder,
+            otherwise => {
+                bail!(None, "Expected format string on LHS, got: {:?}", otherwise);
+            }
+        };
+
+        let rhs = match rhs {
+            ast::Expr::Constant(c) => extract_expr_const(c),
+            ast::Expr::Name(_) => ConstType::Placeholder,
+            otherwise => {
+                bail!(None, "Expected format string on LHS, got: {:?}", otherwise);
+            }
+        };
+        dbg!(&lhs, &rhs);
+        let res = match op {
+            ast::Operator::Add => lhs + rhs,
+            ast::Operator::Sub => lhs - rhs,
+            ast::Operator::Mult => lhs * rhs,
+            ast::Operator::Div => lhs / rhs,
+            _ => bail!(None, "Unexpected operator in extraction: {:?}", op),
+        };
+        Some(res?.to_string())
     }
 
     fn extract_from_call(v: &ast::ExprCall<TextRange>) -> Option<String> {
@@ -247,6 +260,7 @@ fn extract_format_call(
             ast::Expr::Constant(c) => vec![extract_expr_const(c)],
             ast::Expr::List(els) => els.elts.iter().map(extract_expr).collect(),
             ast::Expr::Subscript(_) => vec![ConstType::Placeholder],
+            ast::Expr::BinOp(b) => vec![ConstType::Str(SqlFinder::extract_from_bin_op(b)?)],
             _ => bail_with!(
                 vec![ConstType::Unhandled],
                 "Unhandled value in args: {:?}",
@@ -310,7 +324,9 @@ fn format_python_string(
     args: &[ConstType],
     kwargs: &[(String, ConstType)],
 ) -> Option<String> {
-    let re = Regex::new(r"%\(([^)]+)\)[-+0 #]*(?:\*|\d+)?(?:\.(?:\*|\d+))?[hlL]?[sdifgGeEoxXcubp%]|%[-+0 #]*(?:\*|\d+)?(?:\.(?:\*|\d+))?[hlL]?[sdifgGeEoxXcubp%]").ok()?;
+    let re = Regex::new(
+        r"%\(([^)]+)\)[-+0 #]*(?:\*|\d+)?(?:\.(?:\*|\d+))?[hlL]?[sdifgGeEoxXcubp%]|%[-+0 #]*(?:\*|\d+)?(?:\.(?:\*|\d+))?[hlL]?[sdifgGeEoxXcubp%]",
+    ).ok()?;
     let mut result = format_str.to_string();
     let mut value_index = 0;
     let matches: Vec<_> = re.find_iter(format_str).collect();
@@ -414,7 +430,87 @@ impl Add for ConstType {
                 t1.extend(t2);
                 Some(ConstType::Tuple(t1))
             }
-            (lhs, rhs) => None,
+            (_, _) => None,
+        }
+    }
+}
+impl Sub for ConstType {
+    type Output = Option<ConstType>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (ConstType::Placeholder, _) | (_, ConstType::Placeholder) => {
+                Some(ConstType::Placeholder)
+            }
+            (ConstType::Unhandled, _) | (_, ConstType::Unhandled) => None,
+            (ConstType::Float(f1), ConstType::Float(f2)) => Some(ConstType::Float(f1 - f2)),
+            (ConstType::Int(s1), ConstType::Int(s2)) => {
+                if let (Ok(i1), Ok(i2)) = (s1.parse::<i64>(), s2.parse::<i64>()) {
+                    Some(ConstType::Int((i1 - i2).to_string()))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
+impl Mul for ConstType {
+    type Output = Option<ConstType>;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (ConstType::Placeholder, _) | (_, ConstType::Placeholder) => {
+                Some(ConstType::Placeholder)
+            }
+            (ConstType::Unhandled, _) | (_, ConstType::Unhandled) => None,
+            (ConstType::Float(f1), ConstType::Float(f2)) => Some(ConstType::Float(f1 * f2)),
+            (ConstType::Int(s1), ConstType::Int(s2)) => {
+                if let (Ok(i1), Ok(i2)) = (s1.parse::<i64>(), s2.parse::<i64>()) {
+                    Some(ConstType::Int((i1 * i2).to_string()))
+                } else {
+                    None
+                }
+            }
+            (ConstType::Str(s), ConstType::Int(n)) | (ConstType::Int(n), ConstType::Str(s)) => n
+                .parse::<usize>()
+                .ok()
+                .map(|count| ConstType::Str(s.repeat(count))),
+            _ => None,
+        }
+    }
+}
+
+impl Div for ConstType {
+    type Output = Option<ConstType>;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (ConstType::Placeholder, _) | (_, ConstType::Placeholder) => {
+                Some(ConstType::Placeholder)
+            }
+            (ConstType::Unhandled, _) | (_, ConstType::Unhandled) => None,
+            (ConstType::Float(f1), ConstType::Float(f2)) => {
+                if f2.is_normal() {
+                    Some(ConstType::Float(f1 / f2))
+                } else {
+                    None
+                }
+            }
+
+            (ConstType::Int(s1), ConstType::Int(s2)) => {
+                if let (Ok(i1), Ok(i2)) = (s1.parse::<i64>(), s2.parse::<i64>()) {
+                    if i2 == 0 {
+                        Some(ConstType::Int((i1 / i2).to_string()))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            _ => None,
         }
     }
 }
