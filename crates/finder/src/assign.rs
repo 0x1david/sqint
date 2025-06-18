@@ -1,3 +1,4 @@
+#![allow(clippy::needless_collect)]
 use std::ops::{Add, Div, Mul, Sub};
 
 use crate::formatters;
@@ -223,14 +224,14 @@ impl SqlFinder {
             }
         };
         dbg!(&lhs, &rhs);
-        let res = match op {
+        let result = match op {
             ast::Operator::Add => lhs + rhs,
             ast::Operator::Sub => lhs - rhs,
             ast::Operator::Mult => lhs * rhs,
             ast::Operator::Div => lhs / rhs,
             _ => bail!(None, "Unexpected operator in extraction: {:?}", op),
         };
-        Some(res?.to_string())
+        Some(result?.to_string())
     }
 
     fn extract_from_call(v: &ast::ExprCall<TextRange>) -> Option<String> {
@@ -268,14 +269,14 @@ fn extract_format_call(
             ),
         };
         for p in parsed {
-            pos_fills.push(p.to_string())
+            pos_fills.push(p.to_string());
         }
     }
 
     for kw in kwargs {
-        let name = kw.arg.as_ref().map(|v| v.to_string())?;
+        let name = kw.arg.as_ref().map(std::string::ToString::to_string)?;
         let val = extract_expr(&kw.value);
-        kw_fills.push((name, val))
+        kw_fills.push((name, val));
     }
 
     dbg!(&pos_fills);
@@ -286,7 +287,7 @@ fn extract_format_call(
     }
 
     for (kw, val) in &kw_fills {
-        let pat = format!("{{{}}}", kw);
+        let pat = format!("{{{kw}}}");
         result = result.replace(&pat, &val.to_string());
     }
     result.into()
@@ -415,38 +416,33 @@ impl std::fmt::Display for ConstType {
     }
 }
 impl Add for ConstType {
-    type Output = Option<ConstType>;
+    type Output = Option<Self>;
 
     fn add(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            (ConstType::Placeholder, _) => Some(ConstType::Placeholder),
-            (_, ConstType::Placeholder) => Some(ConstType::Placeholder),
-            (ConstType::Unhandled, _) | (_, ConstType::Unhandled) => None,
-            (ConstType::Str(s1), ConstType::Str(s2)) => Some(ConstType::Str(s1 + &s2)),
-            (ConstType::Int(s1), ConstType::Int(s2)) => Some(ConstType::Int(s1 + &s2)),
-            (ConstType::Float(f1), ConstType::Float(f2)) => Some(ConstType::Float(f1 + f2)),
-            (ConstType::Bool(b1), ConstType::Bool(b2)) => Some(ConstType::Bool(b1 || b2)),
-            (ConstType::Tuple(mut t1), ConstType::Tuple(t2)) => {
+            (Self::Placeholder, _) | (_, Self::Placeholder) => Some(Self::Placeholder),
+            (Self::Str(s1), Self::Str(s2)) => Some(Self::Str(s1 + &s2)),
+            (Self::Int(s1), Self::Int(s2)) => Some(Self::Int(s1 + &s2)),
+            (Self::Float(f1), Self::Float(f2)) => Some(Self::Float(f1 + f2)),
+            (Self::Bool(b1), Self::Bool(b2)) => Some(Self::Bool(b1 || b2)),
+            (Self::Tuple(mut t1), Self::Tuple(t2)) => {
                 t1.extend(t2);
-                Some(ConstType::Tuple(t1))
+                Some(Self::Tuple(t1))
             }
             (_, _) => None,
         }
     }
 }
 impl Sub for ConstType {
-    type Output = Option<ConstType>;
+    type Output = Option<Self>;
 
     fn sub(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            (ConstType::Placeholder, _) | (_, ConstType::Placeholder) => {
-                Some(ConstType::Placeholder)
-            }
-            (ConstType::Unhandled, _) | (_, ConstType::Unhandled) => None,
-            (ConstType::Float(f1), ConstType::Float(f2)) => Some(ConstType::Float(f1 - f2)),
-            (ConstType::Int(s1), ConstType::Int(s2)) => {
+            (Self::Placeholder, _) | (_, Self::Placeholder) => Some(Self::Placeholder),
+            (Self::Float(f1), Self::Float(f2)) => Some(Self::Float(f1 - f2)),
+            (Self::Int(s1), Self::Int(s2)) => {
                 if let (Ok(i1), Ok(i2)) = (s1.parse::<i64>(), s2.parse::<i64>()) {
-                    Some(ConstType::Int((i1 - i2).to_string()))
+                    Some(Self::Int((i1 - i2).to_string()))
                 } else {
                     None
                 }
@@ -457,52 +453,46 @@ impl Sub for ConstType {
 }
 
 impl Mul for ConstType {
-    type Output = Option<ConstType>;
+    type Output = Option<Self>;
 
     fn mul(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            (ConstType::Placeholder, _) | (_, ConstType::Placeholder) => {
-                Some(ConstType::Placeholder)
-            }
-            (ConstType::Unhandled, _) | (_, ConstType::Unhandled) => None,
-            (ConstType::Float(f1), ConstType::Float(f2)) => Some(ConstType::Float(f1 * f2)),
-            (ConstType::Int(s1), ConstType::Int(s2)) => {
+            (Self::Placeholder, _) | (_, Self::Placeholder) => Some(Self::Placeholder),
+            (Self::Float(f1), Self::Float(f2)) => Some(Self::Float(f1 * f2)),
+            (Self::Int(s1), Self::Int(s2)) => {
                 if let (Ok(i1), Ok(i2)) = (s1.parse::<i64>(), s2.parse::<i64>()) {
-                    Some(ConstType::Int((i1 * i2).to_string()))
+                    Some(Self::Int((i1 * i2).to_string()))
                 } else {
                     None
                 }
             }
-            (ConstType::Str(s), ConstType::Int(n)) | (ConstType::Int(n), ConstType::Str(s)) => n
+            (Self::Str(s), Self::Int(n)) | (Self::Int(n), Self::Str(s)) => n
                 .parse::<usize>()
                 .ok()
-                .map(|count| ConstType::Str(s.repeat(count))),
+                .map(|count| Self::Str(s.repeat(count))),
             _ => None,
         }
     }
 }
 
 impl Div for ConstType {
-    type Output = Option<ConstType>;
+    type Output = Option<Self>;
 
     fn div(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            (ConstType::Placeholder, _) | (_, ConstType::Placeholder) => {
-                Some(ConstType::Placeholder)
-            }
-            (ConstType::Unhandled, _) | (_, ConstType::Unhandled) => None,
-            (ConstType::Float(f1), ConstType::Float(f2)) => {
+            (Self::Placeholder, _) | (_, Self::Placeholder) => Some(Self::Placeholder),
+            (Self::Float(f1), Self::Float(f2)) => {
                 if f2.is_normal() {
-                    Some(ConstType::Float(f1 / f2))
+                    Some(Self::Float(f1 / f2))
                 } else {
                     None
                 }
             }
 
-            (ConstType::Int(s1), ConstType::Int(s2)) => {
+            (Self::Int(s1), Self::Int(s2)) => {
                 if let (Ok(i1), Ok(i2)) = (s1.parse::<i64>(), s2.parse::<i64>()) {
                     if i2 == 0 {
-                        Some(ConstType::Int((i1 / i2).to_string()))
+                        Some(Self::Int((i1 / i2).to_string()))
                     } else {
                         None
                     }
