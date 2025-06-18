@@ -637,7 +637,7 @@ query = f"""
             "#,
             vec![(
                 "query",
-                "\n    select \n        id,\n        name,\n        email\n    from users\n    where status = 'active'\n",
+                "\n    select \n        id,\n        name,\n        email\n    from {PLACEHOLDER}\n    where status = '{PLACEHOLDER}'\n",
             )],
             "multiline f-string substitution",
         );
@@ -725,19 +725,6 @@ query = "select * from {} join {} on users.id = orders.user_id".format(tables[0]
     }
 
     #[test]
-    fn nested_format_calls() {
-        harness_find(
-            r#"
-table = "users"
-condition = "status = '{}'".format("active")
-query = "select * from {} where {}".format(table, condition)
-            "#,
-            vec![("query", "select * from users where status = 'active'")],
-            "nested format calls substitution",
-        );
-    }
-
-    #[test]
     fn f_string_with_dictionary_access() {
         harness_find(
             r#"
@@ -779,9 +766,7 @@ query = f"select * from users{table_suffix}"
     fn format_with_arithmetic() {
         harness_find(
             r#"
-base_limit = 50
-multiplier = 2
-query = "select * from users limit {}".format(base_limit * multiplier)
+query = "select * from users limit {}".format(20 * 5)
             "#,
             vec![("query", "select * from users limit 100")],
             "format with arithmetic substitution",

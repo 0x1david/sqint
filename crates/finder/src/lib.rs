@@ -1,7 +1,7 @@
 mod assign;
 mod formatters;
 mod tests;
-use logging::{debug, error, exception};
+use logging::{bail_with, debug, error};
 use rustpython_parser::{
     Parse,
     ast::{self},
@@ -89,9 +89,7 @@ impl SqlFinder {
                     self.analyze_stmts(&t.orelse, contexts);
                     self.analyze_stmts(&t.finalbody, contexts);
                 }
-                _ => {
-                    exception!("Unimplemented stmt: {:?}", suite)
-                } // TODO: Add more query detection contexts
+                _ => bail_with!((), "Unimplemented stmt: {:?}", suite), // TODO: Add more query detection contexts
             }
         }
     }
