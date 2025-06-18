@@ -89,6 +89,10 @@ impl SqlFinder {
                     self.analyze_stmts(&t.orelse, contexts);
                     self.analyze_stmts(&t.finalbody, contexts);
                 }
+                ast::Stmt::For(f) => {
+                    self.analyze_stmts(&f.body, contexts);
+                    self.analyze_stmts(&f.orelse, contexts);
+                }
                 _ => bail_with!((), "Unimplemented stmt: {:?}", suite), // TODO: Add more query detection contexts
             }
         }

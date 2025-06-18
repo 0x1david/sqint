@@ -428,7 +428,6 @@ else:
         harness_find(
             r#"
 for table in tables:
-    # This will be detected:
     sql = "SELECT COUNT(*) FROM table_name"
             "#,
             vec![("sql", "SELECT COUNT(*) FROM table_name")],
