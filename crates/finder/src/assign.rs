@@ -169,14 +169,31 @@ impl SqlFinder {
                     }
                 };
 
-                let rhs = match &*v.right {
-                    ast::Expr::Tuple(t) => t.elts.iter().map(extract_expr).collect(),
-                    ast::Expr::List(l) => l.elts.iter().map(extract_expr).collect(),
-                    ast::Expr::Constant(c) => vec![extract_expr_const(c)],
-                    otherwise => bail_with!(vec![], "Unhandled rhs expr type: {:?}", otherwise),
+                let (args, kwargs) = match &*v.right {
+                    ast::Expr::Tuple(t) => (t.elts.iter().map(extract_expr).collect(), vec![]),
+                    ast::Expr::List(l) => (l.elts.iter().map(extract_expr).collect(), vec![]),
+                    ast::Expr::Dict(d) => {
+                        let keys: Vec<String> = d
+                            .keys
+                            .iter()
+                            .filter_map(|k| k.as_ref())
+                            .map(extract_expr)
+                            .map(|k| k.to_string())
+                            .collect();
+
+                        let values: Vec<ConstType> = d.values.iter().map(extract_expr).collect();
+                        let kwargs = keys.into_iter().zip(values).collect();
+
+                        (vec![], kwargs)
+                    }
+                    ast::Expr::Constant(c) => (vec![extract_expr_const(c)], vec![]),
+                    otherwise => {
+                        bail_with!((vec![], vec![]), "Unhandled rhs expr type: {:?}", otherwise)
+                    }
                 };
+
                 if let ConstType::Str(fmt_string) = expr_string {
-                    return format_python_string(&fmt_string, &rhs);
+                    return format_python_string(&fmt_string, &args, &kwargs);
                 }
                 None
             }
@@ -261,25 +278,44 @@ fn extract_expr_const(c: &ast::ExprConstant<TextRange>) -> ConstType {
     extract_const(&c.value)
 }
 
-fn format_python_string(format_str: &str, values: &[ConstType]) -> Option<String> {
-    let re = Regex::new(r"%[-+0 #]*(?:\*|\d+)?(?:\.(?:\*|\d+))?[hlL]?[sdifgGeEoxXcubp%]").ok()?;
+fn format_python_string(
+    format_str: &str,
+    args: &[ConstType],
+    kwargs: &[(String, ConstType)],
+) -> Option<String> {
+    let re = Regex::new(r"%\(([^)]+)\)[-+0 #]*(?:\*|\d+)?(?:\.(?:\*|\d+))?[hlL]?[sdifgGeEoxXcubp%]|%[-+0 #]*(?:\*|\d+)?(?:\.(?:\*|\d+))?[hlL]?[sdifgGeEoxXcubp%]").ok()?;
     let mut result = format_str.to_string();
     let mut value_index = 0;
     let matches: Vec<_> = re.find_iter(format_str).collect();
 
     for m in matches.iter().rev() {
         let specifier = m.as_str();
+
         if specifier == "%%" {
             result.replace_range(m.range(), "%");
             continue;
         }
-        if value_index >= values.len() {
-            return None;
-        }
-        let value = &values[values.len() - 1 - value_index];
-        value_index += 1;
 
-        let conv = specifier.chars().last().unwrap();
+        let (value, conv) = if specifier.starts_with("%(") {
+            // Named format specifier like %(name)s
+            let key_end = specifier.find(')').unwrap();
+            let key = &specifier[2..key_end]; // Extract key between %( and )
+            let conv = specifier.chars().last().unwrap();
+
+            // Find the value in kwargs slice
+            let value = kwargs.iter().find(|(k, _)| k == key).map(|(_, v)| v)?;
+            (value, conv)
+        } else {
+            // Positional format specifier like %s, %d, etc.
+            if value_index >= args.len() {
+                return None;
+            }
+            let value = &args[args.len() - 1 - value_index];
+            value_index += 1;
+            let conv = specifier.chars().last().unwrap();
+            (value, conv)
+        };
+
         let replacement = match conv {
             's' => Some(value.to_string()),
             'd' | 'i' => formatters::format_value_as_int(value),
@@ -298,6 +334,7 @@ fn format_python_string(format_str: &str, values: &[ConstType]) -> Option<String
 
         result.replace_range(m.range(), &replacement?);
     }
+
     Some(result)
 }
 
