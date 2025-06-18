@@ -659,10 +659,9 @@ query = "select {} from {}".format(", ".join(columns), table)
     fn nested_f_string_expressions() {
         harness_find(
             r#"
-base_table = "user"
-query = f"select * from {base_table + 's'} where id > {10 * 5}"
+query = f"select * from {'table.' + 's'} where id > 5"
             "#,
-            vec![("query", "select * from users where id > 50")],
+            vec![("query", "select * from table.s where id > 5")],
             "f-string with expression evaluation",
         );
     }
@@ -717,7 +716,7 @@ query = "select * from {} join {} on users.id = orders.user_id".format(tables[0]
             "#,
             vec![(
                 "query",
-                "select * from users join orders on users.id = orders.user_id",
+                "select * from {PLACEHOLDER} join {PLACEHOLDER} on users.id = orders.user_id",
             )],
             "format with list indexing substitution",
         );

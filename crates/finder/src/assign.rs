@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 use crate::formatters;
 use crate::{SqlFinder, SqlString};
 use logging::{bail, bail_with};
@@ -197,6 +199,23 @@ impl SqlFinder {
                 }
                 None
             }
+            ast::Operator::Add => {
+                let lhs = match &*v.left {
+                    ast::Expr::Constant(c) => extract_expr_const(c),
+                    otherwise => {
+                        bail!(None, "Expected format string on LHS, got: {:?}", otherwise);
+                    }
+                };
+
+                let rhs = match &*v.right {
+                    ast::Expr::Constant(c) => extract_expr_const(c),
+                    otherwise => {
+                        bail!(None, "Expected format string on LHS, got: {:?}", otherwise);
+                    }
+                };
+                let res = lhs + rhs;
+                Some(res?.to_string())
+            }
             otherwise => bail_with!(None, "Unhandled binary operator: {:?}", otherwise),
         }
     }
@@ -225,10 +244,18 @@ fn extract_format_call(
 
     for a in args {
         let parsed = match a {
-            ast::Expr::Constant(c) => extract_expr_const(c),
-            _ => bail_with!(ConstType::Unhandled, "Unhandled value in args: {:?}", a),
+            ast::Expr::Constant(c) => vec![extract_expr_const(c)],
+            ast::Expr::List(els) => els.elts.iter().map(extract_expr).collect(),
+            ast::Expr::Subscript(_) => vec![ConstType::Placeholder],
+            _ => bail_with!(
+                vec![ConstType::Unhandled],
+                "Unhandled value in args: {:?}",
+                a
+            ),
         };
-        pos_fills.push(parsed.to_string())
+        for p in parsed {
+            pos_fills.push(p.to_string())
+        }
     }
 
     for kw in kwargs {
@@ -345,6 +372,7 @@ pub enum ConstType {
     Float(f64),
     Bool(bool),
     Tuple(Vec<ConstType>),
+    Placeholder,
     Unhandled,
 }
 impl std::fmt::Display for ConstType {
@@ -365,7 +393,28 @@ impl std::fmt::Display for ConstType {
                 }
                 write!(f, ")")
             }
+            Self::Placeholder => write!(f, "{{PLACEHOLDER}}"),
             Self::Unhandled => write!(f, "<unhandled>"),
+        }
+    }
+}
+impl Add for ConstType {
+    type Output = Option<ConstType>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (ConstType::Placeholder, _) => Some(ConstType::Placeholder),
+            (_, ConstType::Placeholder) => Some(ConstType::Placeholder),
+            (ConstType::Unhandled, _) | (_, ConstType::Unhandled) => None,
+            (ConstType::Str(s1), ConstType::Str(s2)) => Some(ConstType::Str(s1 + &s2)),
+            (ConstType::Int(s1), ConstType::Int(s2)) => Some(ConstType::Int(s1 + &s2)),
+            (ConstType::Float(f1), ConstType::Float(f2)) => Some(ConstType::Float(f1 + f2)),
+            (ConstType::Bool(b1), ConstType::Bool(b2)) => Some(ConstType::Bool(b1 || b2)),
+            (ConstType::Tuple(mut t1), ConstType::Tuple(t2)) => {
+                t1.extend(t2);
+                Some(ConstType::Tuple(t1))
+            }
+            (lhs, rhs) => None,
         }
     }
 }
