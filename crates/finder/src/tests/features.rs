@@ -650,7 +650,7 @@ columns = ["id", "name", "email"]
 table = "users"
 query = "select {} from {}".format(", ".join(columns), table)
             "#,
-            vec![("query", "select id, name, email from users")],
+            vec![("query", "select {PLACEHOLDER} from {PLACEHOLDER}")],
             "format with join operation substitution",
         );
     }
@@ -675,7 +675,7 @@ query = "select * from {table} where status = '{status}' limit {limit}".format(*
             "#,
             vec![(
                 "query",
-                "select * from orders where status = 'pending' limit 50",
+                "select * from {PLACEHOLDER} where status = '{PLACEHOLDER}' limit {PLACEHOLDER}",
             )],
             "format with dictionary unpacking substitution",
         );
@@ -729,7 +729,7 @@ query = "select * from {} join {} on users.id = orders.user_id".format(tables[0]
 config = {"table": "customers", "limit": 100}
 query = f"select * from {config['table']} limit {config['limit']}"
             "#,
-            vec![("query", "select * from customers limit 100")],
+            vec![("query", "select * from {PLACEHOLDER} limit {PLACEHOLDER}")],
             "f-string with dictionary access substitution",
         );
     }

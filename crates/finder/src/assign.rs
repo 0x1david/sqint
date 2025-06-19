@@ -148,6 +148,7 @@ impl SqlFinder {
                 }
             }
             ast::Expr::Name(_) => Some(format!("{{{}}}", "PLACEHOLDER")),
+            ast::Expr::Subscript(_) => Some(format!("{{{}}}", "PLACEHOLDER")),
             ast::Expr::Call(c) => Self::extract_from_call(c),
             ast::Expr::FormattedValue(f) => Self::extract_string_content(&f.value),
             ast::Expr::BinOp(b) => Self::extract_from_bin_op(b),
@@ -236,7 +237,6 @@ impl SqlFinder {
 
     fn extract_from_call(v: &ast::ExprCall<TextRange>) -> Option<String> {
         dbg!(v);
-
         match &*v.func {
             ast::Expr::Attribute(ast::ExprAttribute { attr, value, .. })
                 if attr.as_str() == "format" =>
@@ -247,7 +247,6 @@ impl SqlFinder {
         }
     }
 }
-
 fn extract_format_call(
     args: &[ast::Expr],
     kwargs: &[ast::Keyword],
@@ -255,12 +254,15 @@ fn extract_format_call(
 ) -> Option<String> {
     let mut pos_fills = vec![];
     let mut kw_fills = vec![];
+    let mut has_unpacked_dict = false;
 
     for a in args {
         let parsed = match a {
             ast::Expr::Constant(c) => vec![extract_expr_const(c)],
             ast::Expr::List(els) => els.elts.iter().map(extract_expr).collect(),
             ast::Expr::Subscript(_) => vec![ConstType::Placeholder],
+            ast::Expr::Name(_) => vec![ConstType::Placeholder],
+            ast::Expr::Call(_) => vec![ConstType::Placeholder],
             ast::Expr::BinOp(b) => vec![ConstType::Str(SqlFinder::extract_from_bin_op(b)?)],
             _ => bail_with!(
                 vec![ConstType::Unhandled],
@@ -274,23 +276,44 @@ fn extract_format_call(
     }
 
     for kw in kwargs {
-        let name = kw.arg.as_ref().map(std::string::ToString::to_string)?;
-        let val = extract_expr(&kw.value);
-        kw_fills.push((name, val));
+        if let Some(name) = &kw.arg {
+            let val = extract_expr(&kw.value);
+            kw_fills.push((name.clone(), val));
+        } else {
+            has_unpacked_dict = true;
+        }
     }
-
-    dbg!(&pos_fills);
 
     let mut result = extract_expr(value).to_string();
-    for f in &pos_fills {
-        result = result.replacen("{}", f, 1);
+
+    if has_unpacked_dict {
+        let re = Regex::new(r"\{[^}]+\}").unwrap();
+        result = re.replace_all(&result, "{PLACEHOLDER}").to_string();
+    } else {
+        use regex::Regex;
+        let numbered_re = Regex::new(r"\{(\d+)\}").unwrap();
+        result = numbered_re
+            .replace_all(&result, |caps: &regex::Captures| {
+                let index: usize = caps[1].parse().unwrap_or(0);
+                if index < pos_fills.len() {
+                    pos_fills[index].clone()
+                } else {
+                    "{PLACEHOLDER}".to_string()
+                }
+            })
+            .to_string();
+
+        for f in &pos_fills {
+            result = result.replacen("{}", f, 1);
+        }
+
+        for (kw_name, val) in &kw_fills {
+            let pat = format!("{{{}}}", kw_name);
+            result = result.replace(&pat, &val.to_string());
+        }
     }
 
-    for (kw, val) in &kw_fills {
-        let pat = format!("{{{kw}}}");
-        result = result.replace(&pat, &val.to_string());
-    }
-    result.into()
+    Some(result)
 }
 
 fn extract_expr(expr: &ast::Expr<TextRange>) -> ConstType {

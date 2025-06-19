@@ -89,14 +89,54 @@ impl SqlFinder {
                     self.analyze_stmts(&t.orelse, contexts);
                     self.analyze_stmts(&t.finalbody, contexts);
                 }
+                ast::Stmt::TryStar(t) => {
+                    self.analyze_stmts(&t.body, contexts);
+
+                    t.handlers
+                        .iter()
+                        .filter_map(|h| h.as_except_handler())
+                        .for_each(|h| self.analyze_stmts(&h.body, contexts));
+
+                    self.analyze_stmts(&t.orelse, contexts);
+                    self.analyze_stmts(&t.finalbody, contexts);
+                }
                 ast::Stmt::For(f) => {
+                    self.analyze_stmts(&f.body, contexts);
+                    self.analyze_stmts(&f.orelse, contexts);
+                }
+                ast::Stmt::AsyncFor(f) => {
                     self.analyze_stmts(&f.body, contexts);
                     self.analyze_stmts(&f.orelse, contexts);
                 }
                 ast::Stmt::FunctionDef(f) => {
                     self.analyze_stmts(&f.body, contexts);
                 }
-                _ => bail_with!((), "Unimplemented stmt: {:?}", suite), // TODO: Add more query detection contexts
+                ast::Stmt::AsyncFunctionDef(f) => {
+                    self.analyze_stmts(&f.body, contexts);
+                }
+                ast::Stmt::ClassDef(f) => {
+                    self.analyze_stmts(&f.body, contexts);
+                }
+                ast::Stmt::If(f) => {
+                    self.analyze_stmts(&f.body, contexts);
+                    self.analyze_stmts(&f.orelse, contexts);
+                }
+                ast::Stmt::With(f) => {
+                    self.analyze_stmts(&f.body, contexts);
+                }
+                ast::Stmt::AsyncWith(f) => {
+                    self.analyze_stmts(&f.body, contexts);
+                }
+                ast::Stmt::While(f) => {
+                    self.analyze_stmts(&f.body, contexts);
+                    self.analyze_stmts(&f.orelse, contexts);
+                }
+                ast::Stmt::Match(f) => {
+                    for c in &f.cases {
+                        self.analyze_stmts(&c.body, contexts)
+                    }
+                }
+                _ => bail_with!((), "Unimplemented stmt: {:?}", suite),
             }
         }
     }
