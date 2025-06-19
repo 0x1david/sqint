@@ -1,8 +1,9 @@
+use std::collections::HashSet;
 use std::fmt;
 use std::ops::{Add, Div, Mul, Sub};
 
 #[derive(Debug, Clone)]
-pub(super) struct SearchCtx {
+pub struct SearchCtx {
     pub var_assign: bool,
 }
 
@@ -22,7 +23,7 @@ pub struct SqlString {
 
 #[derive(Debug, Clone)]
 pub struct FinderConfig {
-    pub variables: Vec<String>,
+    pub variables: HashSet<String>,
     pub min_sql_length: usize,
 }
 

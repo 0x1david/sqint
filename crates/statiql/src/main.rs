@@ -32,7 +32,11 @@ fn main() {
 
 fn handle_check(args: &CheckArgs, config: &Config, cli: &Cli) {
     let cfg = FinderConfig {
-        variables: config.variable_names.clone(),
+        variables: config
+            .variable_names
+            .iter()
+            .map(|f| f.to_lowercase())
+            .collect(),
         min_sql_length: config.min_sql_length,
     };
     let sql_finder = SqlFinder::new(cfg);

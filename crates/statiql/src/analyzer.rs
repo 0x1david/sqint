@@ -31,7 +31,7 @@ impl SqlAnalyzer {
         extract
             .strings
             .iter()
-            .filter(|s| cfg.variable_names.contains(&s.variable_name))
+            // .filter(|s| cfg.variable_names.contains(&s.variable_name))
             .for_each(|sql_string| self.analyze_sql_string(sql_string));
     }
 

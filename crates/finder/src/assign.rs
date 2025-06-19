@@ -14,14 +14,14 @@ use rustpython_parser::{
 impl SqlFinder {
     pub(super) fn analyze_assignment(&self, assign: &ast::StmtAssign) -> Vec<SqlString> {
         let mut sqls = vec![];
-        for target in &assign.targets {
+        assign.targets.iter().for_each(|target| {
             let results = self.process_assignment_target(
                 target,
                 &assign.value,
                 assign.range.start().to_usize(),
             );
             sqls.extend(results);
-        }
+        });
         sqls
     }
 
@@ -89,6 +89,13 @@ impl SqlFinder {
         value: &ast::Expr,
         byte_offset: usize,
     ) -> Vec<SqlString> {
+        let has_sql_target = targets
+            .iter()
+            .any(|target| self.target_contains_sql_variable(target));
+
+        if !has_sql_target {
+            return vec![];
+        }
         match value {
             ast::Expr::Tuple(tuple_value) => {
                 self.process_paired_assignments(targets, &tuple_value.elts, byte_offset)
@@ -137,6 +144,22 @@ impl SqlFinder {
         }
 
         results
+    }
+    fn target_contains_sql_variable(&self, target: &ast::Expr) -> bool {
+        match target {
+            ast::Expr::Name(name) => self.is_sql_variable_name(&name.id),
+            ast::Expr::Attribute(att) => self.is_sql_variable_name(&att.attr),
+            ast::Expr::Tuple(tuple) => tuple
+                .elts
+                .iter()
+                .any(|t| self.target_contains_sql_variable(t)),
+            ast::Expr::List(list) => list
+                .elts
+                .iter()
+                .any(|t| self.target_contains_sql_variable(t)),
+            ast::Expr::Starred(starred) => self.target_contains_sql_variable(&starred.value),
+            _ => false,
+        }
     }
 }
 

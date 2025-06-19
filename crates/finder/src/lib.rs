@@ -123,10 +123,7 @@ impl SqlFinder {
     /// Check if variable name suggests it contains SQL
     fn is_sql_variable_name(&self, name: &str) -> bool {
         let name_lower = name.to_lowercase();
-        self.config
-            .variables
-            .iter()
-            .any(|pattern| name_lower.contains(&pattern.to_lowercase()))
+        self.config.variables.contains(&name_lower)
     }
 }
 
