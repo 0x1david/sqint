@@ -45,36 +45,6 @@ impl SqlFinder {
             strings,
         })
     }
-    fn analyze_body_and_orelse(
-        &self,
-        body: &Vec<ast::Stmt>,
-        orelse: &Vec<ast::Stmt>,
-    ) -> Vec<SqlString> {
-        self.analyze_stmts(body)
-            .into_iter()
-            .chain(self.analyze_stmts(orelse))
-            .collect()
-    }
-
-    fn analyze_try(
-        &self,
-        body: &Vec<ast::Stmt>,
-        orelse: &Vec<ast::Stmt>,
-        finalbody: &Vec<ast::Stmt>,
-        handlers: &[ast::ExceptHandler],
-    ) -> Vec<SqlString> {
-        self.analyze_stmts(body)
-            .into_iter()
-            .chain(
-                handlers
-                    .iter()
-                    .filter_map(|h| h.as_except_handler())
-                    .flat_map(|eh| self.analyze_stmts(&eh.body)),
-            )
-            .chain(self.analyze_stmts(orelse))
-            .chain(self.analyze_stmts(finalbody))
-            .collect()
-    }
 
     pub(crate) fn analyze_stmts(&self, suite: &ast::Suite) -> Vec<SqlString> {
         let mut results = Vec::new();
@@ -109,6 +79,7 @@ impl SqlFinder {
                     .flat_map(|c| self.analyze_stmts(&c.body))
                     .collect(),
 
+                ast::Stmt::Expr(e) => self.analyze_stmt_expr(e),
                 _ => {
                     bail_with!(vec![], "Unimplemented stmt: {:?}", stmt)
                 }
@@ -120,10 +91,51 @@ impl SqlFinder {
         results
     }
 
+    fn analyze_body_and_orelse(
+        &self,
+        body: &Vec<ast::Stmt>,
+        orelse: &Vec<ast::Stmt>,
+    ) -> Vec<SqlString> {
+        self.analyze_stmts(body)
+            .into_iter()
+            .chain(self.analyze_stmts(orelse))
+            .collect()
+    }
+
+    fn analyze_try(
+        &self,
+        body: &Vec<ast::Stmt>,
+        orelse: &Vec<ast::Stmt>,
+        finalbody: &Vec<ast::Stmt>,
+        handlers: &[ast::ExceptHandler],
+    ) -> Vec<SqlString> {
+        self.analyze_stmts(body)
+            .into_iter()
+            .chain(
+                handlers
+                    .iter()
+                    .filter_map(|h| h.as_except_handler())
+                    .flat_map(|eh| self.analyze_stmts(&eh.body)),
+            )
+            .chain(self.analyze_stmts(orelse))
+            .chain(self.analyze_stmts(finalbody))
+            .collect()
+    }
+
     /// Check if variable name suggests it contains SQL
     fn is_sql_variable_name(&self, name: &str) -> bool {
         let name_lower = name.to_lowercase();
         self.config.variables.contains(&name_lower)
+    }
+
+    fn is_sql_function_name(&self, name: &str) -> bool {
+        let name_lower = name.to_lowercase();
+        self.config.func_names.contains(&name_lower)
+    }
+
+    fn is_sql_parameter_name(&self, name: &str) -> bool {
+        let sql_params = ["sql", "query", "statement", "command"]; // TODO: Configurable
+        sql_params.contains(&name)
     }
 }
 

@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use crate::*;
     use rustpython_parser::{
         Parse,
@@ -8,12 +10,18 @@ mod tests {
 
     fn harness_create_test_finder() -> SqlFinder {
         SqlFinder::new(FinderConfig {
-            variables: vec![
+            variables: HashSet::from_iter([
                 "query".to_string(),
                 "sql".to_string(),
                 "also_query".to_string(),
-            ],
+            ]),
             min_sql_length: 1,
+
+            func_names: HashSet::from_iter([
+                "query_fun".to_string(),
+                "sql_fun".to_string(),
+                "also_query_fun".to_string(),
+            ]),
         })
     }
 
@@ -767,6 +775,312 @@ query = "select * from users limit {}".format(20 * 5)
             "#,
             vec![("query", "select * from users limit 100")],
             "format with arithmetic substitution",
+        );
+    }
+    #[test]
+    fn simple_function_call() {
+        harness_find(
+            r#"execute("SELECT * FROM users WHERE active = 1")"#,
+            vec![("execute", "SELECT * FROM users WHERE active = 1")],
+            "simple function call",
+        );
+    }
+
+    #[test]
+    fn method_call_on_object() {
+        harness_find(
+            r#"db.query_fun("SELECT id, name FROM products ORDER BY name")"#,
+            vec![("query_fun", "SELECT id, name FROM products ORDER BY name")],
+            "method call on object",
+        );
+    }
+
+    #[test]
+    fn chained_method_calls() {
+        harness_find(
+            r#"database.connection.sql_fun("UPDATE users SET last_login = NOW()")"#,
+            vec![("sql_fun", "UPDATE users SET last_login = NOW()")],
+            "chained method calls",
+        );
+    }
+
+    #[test]
+    fn function_call_with_multiple_args() {
+        harness_find(
+            r#"execute_query("SELECT * FROM orders WHERE date > ?", "2023-01-01")"#,
+            vec![], // execute_query not in func_names
+            "function call with multiple args",
+        );
+    }
+
+    #[test]
+    fn function_call_with_kwargs() {
+        harness_find(
+            r#"query_fun(sql="SELECT * FROM users", timeout=30)"#,
+            vec![("query_fun", "SELECT * FROM users")],
+            "function call with keyword arguments",
+        );
+    }
+
+    #[test]
+    fn nested_function_calls() {
+        harness_find(
+            r#"outer_func(sql_fun("SELECT COUNT(*) FROM products"))"#,
+            vec![("sql_fun", "SELECT COUNT(*) FROM products")],
+            "nested function calls",
+        );
+    }
+
+    #[test]
+    fn function_call_in_expression() {
+        harness_find(
+            r#"result = query_fun("SELECT * FROM cache") or default_query()"#,
+            vec![("query_fun", "SELECT * FROM cache")],
+            "function call in boolean expression",
+        );
+    }
+
+    #[test]
+    fn function_call_with_f_string() {
+        harness_find(
+            r#"
+table = "users"
+sql_fun(f"SELECT * FROM {table} WHERE active = 1")
+        "#,
+            vec![("sql_fun", "SELECT * FROM {PLACEHOLDER} WHERE active = 1")],
+            "function call with f-string",
+        );
+    }
+
+    #[test]
+    fn function_call_with_format_method() {
+        harness_find(
+            r#"query_fun("SELECT * FROM {} WHERE status = '{}'".format("orders", "pending"))"#,
+            vec![("query_fun", "SELECT * FROM orders WHERE status = 'pending'")],
+            "function call with format method",
+        );
+    }
+
+    #[test]
+    fn function_call_with_percent_formatting() {
+        harness_find(
+            r#"also_query_fun("SELECT * FROM %s WHERE id = %d" % ("products", 123))"#,
+            vec![("also_query_fun", "SELECT * FROM products WHERE id = 123")],
+            "function call with percent formatting",
+        );
+    }
+
+    #[test]
+    fn function_call_with_multiline_sql() {
+        harness_find(
+            r#"
+sql_fun("""
+    SELECT 
+        u.id,
+        u.name,
+        COUNT(o.id) as order_count
+    FROM users u
+    LEFT JOIN orders o ON u.id = o.user_id
+    GROUP BY u.id, u.name
+""")
+        "#,
+            vec![(
+                "sql_fun",
+                "\n    SELECT \n        u.id,\n        u.name,\n        COUNT(o.id) as order_count\n    FROM users u\n    LEFT JOIN orders o ON u.id = o.user_id\n    GROUP BY u.id, u.name\n",
+            )],
+            "function call with multiline SQL",
+        );
+    }
+
+    #[test]
+    fn multiple_function_calls_same_line() {
+        harness_find(
+            r#"query_fun("SELECT 1"); sql_fun("SELECT 2")"#,
+            vec![("query_fun", "SELECT 1"), ("sql_fun", "SELECT 2")],
+            "multiple function calls same line",
+        );
+    }
+
+    #[test]
+    fn function_call_in_conditional() {
+        harness_find(
+            r#"
+if condition:
+    query_fun("SELECT * FROM users WHERE role = 'admin'")
+else:
+    sql_fun("SELECT * FROM users WHERE role = 'user'")
+        "#,
+            vec![
+                ("query_fun", "SELECT * FROM users WHERE role = 'admin'"),
+                ("sql_fun", "SELECT * FROM users WHERE role = 'user'"),
+            ],
+            "function calls in conditional",
+        );
+    }
+
+    #[test]
+    fn function_call_in_loop() {
+        harness_find(
+            r#"
+for table in tables:
+    also_query_fun(f"SELECT COUNT(*) FROM {table}")
+        "#,
+            vec![("also_query_fun", "SELECT COUNT(*) FROM {PLACEHOLDER}")],
+            "function call in loop",
+        );
+    }
+
+    #[test]
+    fn function_call_in_try_except() {
+        harness_find(
+            r#"
+try:
+    query_fun("SELECT * FROM risky_table WHERE complex_join = true")
+except Exception:
+    sql_fun("SELECT * FROM fallback_table")
+        "#,
+            vec![
+                (
+                    "query_fun",
+                    "SELECT * FROM risky_table WHERE complex_join = true",
+                ),
+                ("sql_fun", "SELECT * FROM fallback_table"),
+            ],
+            "function calls in try/except",
+        );
+    }
+
+    #[test]
+    fn function_call_with_variable_argument() {
+        harness_find(
+            r#"
+user_query = "SELECT * FROM users WHERE id = ?"
+sql_fun(user_query)
+        "#,
+            vec![("sql_fun", "{PLACEHOLDER}")],
+            "function call with variable argument",
+        );
+    }
+
+    #[test]
+    fn function_call_with_list_comprehension() {
+        harness_find(
+            r#"query_fun("SELECT id FROM users WHERE id IN ({})".format(",".join([str(i) for i in range(5)])))"#,
+            vec![(
+                "query_fun",
+                "SELECT id FROM users WHERE id IN ({PLACEHOLDER})",
+            )],
+            "function call with list comprehension",
+        );
+    }
+
+    #[test]
+    fn function_call_return_statement() {
+        harness_find(
+            r#"
+def get_user_query():
+    return query_fun("SELECT * FROM users WHERE active = 1")
+        "#,
+            vec![("query_fun", "SELECT * FROM users WHERE active = 1")],
+            "function call in return statement",
+        );
+    }
+
+    #[test]
+    fn lambda_with_function_call() {
+        harness_find(
+            r#"callback = lambda: sql_fun("SELECT * FROM temp_data")"#,
+            vec![("sql_fun", "SELECT * FROM temp_data")],
+            "function call in lambda",
+        );
+    }
+
+    #[test]
+    fn function_call_as_default_argument() {
+        harness_find(
+            r#"
+def process_data(query=query_fun("SELECT * FROM default_table")):
+    pass
+        "#,
+            vec![("query_fun", "SELECT * FROM default_table")],
+            "function call as default argument",
+        );
+    }
+
+    #[test]
+    fn function_call_in_list_context() {
+        harness_find(
+            r#"queries = [query_fun("SELECT 1"), sql_fun("SELECT 2"), also_query_fun("SELECT 3")]"#,
+            vec![
+                ("query_fun", "SELECT 1"),
+                ("sql_fun", "SELECT 2"),
+                ("also_query_fun", "SELECT 3"),
+            ],
+            "function calls in list context",
+        );
+    }
+
+    #[test]
+    fn function_call_in_dict_context() {
+        harness_find(
+            r#"
+queries = {
+    "users": query_fun("SELECT * FROM users"),
+    "orders": sql_fun("SELECT * FROM orders")
+}
+        "#,
+            vec![
+                ("query_fun", "SELECT * FROM users"),
+                ("sql_fun", "SELECT * FROM orders"),
+            ],
+            "function calls in dictionary context",
+        );
+    }
+
+    #[test]
+    fn function_call_with_string_concatenation() {
+        harness_find(
+            r#"query_fun("SELECT * FROM " + "users" + " WHERE active = 1")"#,
+            vec![("query_fun", "SELECT * FROM users WHERE active = 1")],
+            "function call with string concatenation",
+        );
+    }
+
+    #[test]
+    fn chained_calls_different_functions() {
+        harness_find(
+            r#"
+query_fun("SELECT id FROM users").sql_fun("UPDATE users SET active = 1")
+        "#,
+            vec![
+                ("query_fun", "SELECT id FROM users"),
+                ("sql_fun", "UPDATE users SET active = 1"),
+            ],
+            "chained calls with different function names",
+        );
+    }
+
+    #[test]
+    fn function_call_with_unpacked_args() {
+        harness_find(
+            r#"
+args = ["SELECT * FROM dynamic_table"]
+query_fun(*args)
+        "#,
+            vec![("query_fun", "{PLACEHOLDER}")],
+            "function call with unpacked arguments",
+        );
+    }
+
+    #[test]
+    fn function_call_with_unpacked_kwargs() {
+        harness_find(
+            r#"
+kwargs = {"sql": "SELECT * FROM users", "timeout": 30}
+sql_fun(**kwargs)
+        "#,
+            vec![("sql_fun", "{PLACEHOLDER}")],
+            "function call with unpacked keyword arguments",
         );
     }
 }

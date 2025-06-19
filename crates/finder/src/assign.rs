@@ -25,6 +25,10 @@ impl SqlFinder {
         sqls
     }
 
+    pub(super) fn analyze_stmt_expr(&self, e: &ast::StmtExpr) -> Vec<SqlString> {
+        self.process_expr_stmt(&e.value, e.range.start().to_usize())
+    }
+
     pub(super) fn analyze_annotated_assignment(
         &self,
         assign: &ast::StmtAnnAssign,
@@ -44,6 +48,61 @@ impl SqlFinder {
 
 // Assignment target processing
 impl SqlFinder {
+    fn process_expr_stmt(&self, value: &ast::Expr, byte_offset: usize) -> Vec<SqlString> {
+        match value {
+            ast::Expr::Call(call) => self.process_call_expr(call, byte_offset),
+            ast::Expr::Attribute(_) => {
+                // Handle method calls like obj.execute(sql)
+                if let ast::Expr::Call(call) = value {
+                    self.process_call_expr(call, byte_offset)
+                } else {
+                    vec![]
+                }
+            }
+            _ => {
+                bail_with!(vec![], "Unhandled expr_stmt value pattern: {:?}", value)
+            }
+        }
+    }
+
+    fn process_call_expr(&self, call: &ast::ExprCall, byte_offset: usize) -> Vec<SqlString> {
+        let function_name = Self::extract_function_name(&call.func);
+
+        if !self.is_sql_function_name(&function_name) {
+            return vec![];
+        }
+
+        let keyword_sqls = call.keywords.iter().filter_map(|keyword| {
+            keyword.arg.as_ref().and_then(|arg_name| {
+                if self.is_sql_parameter_name(arg_name) {
+                    Self::extract_string_content(&keyword.value).map(|sql_content| SqlString {
+                        byte_offset,
+                        variable_name: format!("{}({})", function_name, arg_name),
+                        sql_content,
+                    })
+                } else {
+                    None
+                }
+            })
+        });
+
+        let sqls = call
+            .args
+            .iter()
+            .enumerate()
+            .filter_map(|(i, arg)| {
+                Self::extract_string_content(arg).map(|sql_content| SqlString {
+                    byte_offset,
+                    variable_name: function_name.to_string(),
+                    sql_content,
+                })
+            })
+            .chain(keyword_sqls)
+            .collect();
+
+        sqls
+    }
+
     fn process_assignment_target(
         &self,
         target: &ast::Expr,
@@ -165,6 +224,16 @@ impl SqlFinder {
 
 // String extraction
 impl SqlFinder {
+    fn extract_function_name(func_expr: &ast::Expr) -> String {
+        match func_expr {
+            ast::Expr::Name(name) => name.id.to_string(),
+            ast::Expr::Attribute(attr) => {
+                // Handle method calls like cursor.execute, db.query...
+                format!("{}.{}", Self::extract_function_name(&attr.value), attr.attr)
+            }
+            _ => "unknown_function".to_string(),
+        }
+    }
     fn extract_string_content(expr: &ast::Expr) -> Option<String> {
         match expr {
             ast::Expr::Constant(c) => {
