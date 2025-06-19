@@ -1,5 +1,5 @@
 #![allow(clippy::needless_collect)]
-use std::ops::{Add, Div, Mul, Sub};
+use crate::finder_type::FinderType;
 
 use crate::formatters;
 use crate::{SqlFinder, SqlString};
@@ -147,8 +147,7 @@ impl SqlFinder {
                     bail_with!(None, "constant string: {:?}", c)
                 }
             }
-            ast::Expr::Name(_) => Some(format!("{{{}}}", "PLACEHOLDER")),
-            ast::Expr::Subscript(_) => Some(format!("{{{}}}", "PLACEHOLDER")),
+            ast::Expr::Subscript(_) | ast::Expr::Name(_) => Some(format!("{{{}}}", "PLACEHOLDER")),
             ast::Expr::Call(c) => Self::extract_from_call(c),
             ast::Expr::FormattedValue(f) => Self::extract_string_content(&f.value),
             ast::Expr::BinOp(b) => Self::extract_from_bin_op(b),
@@ -185,7 +184,7 @@ impl SqlFinder {
                             .map(|k| k.to_string())
                             .collect();
 
-                        let values: Vec<ConstType> = d.values.iter().map(extract_expr).collect();
+                        let values: Vec<FinderType> = d.values.iter().map(extract_expr).collect();
                         let kwargs = keys.into_iter().zip(values).collect();
 
                         (vec![], kwargs)
@@ -196,7 +195,7 @@ impl SqlFinder {
                     }
                 };
 
-                if let ConstType::Str(fmt_string) = expr_string {
+                if let FinderType::Str(fmt_string) = expr_string {
                     return format_python_string(&fmt_string, &args, &kwargs);
                 }
                 None
@@ -211,7 +210,7 @@ impl SqlFinder {
     ) -> Option<String> {
         let lhs = match lhs {
             ast::Expr::Constant(c) => extract_expr_const(c),
-            ast::Expr::Name(_) => ConstType::Placeholder,
+            ast::Expr::Name(_) => FinderType::Placeholder,
             otherwise => {
                 bail!(None, "Expected format string on LHS, got: {:?}", otherwise);
             }
@@ -219,7 +218,7 @@ impl SqlFinder {
 
         let rhs = match rhs {
             ast::Expr::Constant(c) => extract_expr_const(c),
-            ast::Expr::Name(_) => ConstType::Placeholder,
+            ast::Expr::Name(_) => FinderType::Placeholder,
             otherwise => {
                 bail!(None, "Expected format string on LHS, got: {:?}", otherwise);
             }
@@ -260,12 +259,12 @@ fn extract_format_call(
         let parsed = match a {
             ast::Expr::Constant(c) => vec![extract_expr_const(c)],
             ast::Expr::List(els) => els.elts.iter().map(extract_expr).collect(),
-            ast::Expr::Subscript(_) => vec![ConstType::Placeholder],
-            ast::Expr::Name(_) => vec![ConstType::Placeholder],
-            ast::Expr::Call(_) => vec![ConstType::Placeholder],
-            ast::Expr::BinOp(b) => vec![ConstType::Str(SqlFinder::extract_from_bin_op(b)?)],
+            ast::Expr::Subscript(_) | ast::Expr::Name(_) | ast::Expr::Call(_) => {
+                vec![FinderType::Placeholder]
+            }
+            ast::Expr::BinOp(b) => vec![FinderType::Str(SqlFinder::extract_from_bin_op(b)?)],
             _ => bail_with!(
-                vec![ConstType::Unhandled],
+                vec![FinderType::Unhandled],
                 "Unhandled value in args: {:?}",
                 a
             ),
@@ -308,7 +307,7 @@ fn extract_format_call(
         }
 
         for (kw_name, val) in &kw_fills {
-            let pat = format!("{{{}}}", kw_name);
+            let pat = format!("{{{kw_name}}}");
             result = result.replace(&pat, &val.to_string());
         }
     }
@@ -316,37 +315,37 @@ fn extract_format_call(
     Some(result)
 }
 
-fn extract_expr(expr: &ast::Expr<TextRange>) -> ConstType {
+fn extract_expr(expr: &ast::Expr<TextRange>) -> FinderType {
     if let ast::Expr::Constant(v) = expr {
         extract_expr_const(v)
     } else {
         bail_with!(
-            ConstType::Unhandled,
+            FinderType::Unhandled,
             "Unhandled Expression for Extraction: {:?}",
             expr
         )
     }
 }
 
-fn extract_const(c: &ast::Constant) -> ConstType {
+fn extract_const(c: &ast::Constant) -> FinderType {
     match c {
-        ast::Constant::Str(s) => ConstType::Str(s.clone()),
-        ast::Constant::Int(i) => ConstType::Int(i.to_string()),
-        ast::Constant::Bool(b) => ConstType::Bool(*b),
-        ast::Constant::Float(f) => ConstType::Float(*f),
-        ast::Constant::Tuple(t) => ConstType::Tuple(t.iter().map(extract_const).collect()),
-        _ => bail_with!(ConstType::Unhandled, "Unhandled Constant: {:?}", c),
+        ast::Constant::Str(s) => FinderType::Str(s.clone()),
+        ast::Constant::Int(i) => FinderType::Int(i.to_string()),
+        ast::Constant::Bool(b) => FinderType::Bool(*b),
+        ast::Constant::Float(f) => FinderType::Float(*f),
+        ast::Constant::Tuple(t) => FinderType::Tuple(t.iter().map(extract_const).collect()),
+        _ => bail_with!(FinderType::Unhandled, "Unhandled Constant: {:?}", c),
     }
 }
 
-fn extract_expr_const(c: &ast::ExprConstant<TextRange>) -> ConstType {
+fn extract_expr_const(c: &ast::ExprConstant<TextRange>) -> FinderType {
     extract_const(&c.value)
 }
 
 fn format_python_string(
     format_str: &str,
-    args: &[ConstType],
-    kwargs: &[(String, ConstType)],
+    args: &[FinderType],
+    kwargs: &[(String, FinderType)],
 ) -> Option<String> {
     let re = Regex::new(
         r"%\(([^)]+)\)[-+0 #]*(?:\*|\d+)?(?:\.(?:\*|\d+))?[hlL]?[sdifgGeEoxXcubp%]|%[-+0 #]*(?:\*|\d+)?(?:\.(?:\*|\d+))?[hlL]?[sdifgGeEoxXcubp%]",
@@ -403,127 +402,4 @@ fn format_python_string(
     }
 
     Some(result)
-}
-
-#[derive(Debug)]
-pub enum ConstType {
-    Str(String),
-    Int(String),
-    Float(f64),
-    Bool(bool),
-    Tuple(Vec<ConstType>),
-    Placeholder,
-    Unhandled,
-}
-impl std::fmt::Display for ConstType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Str(s) => write!(f, "{s}"),
-            Self::Int(i) => write!(f, "{i}"),
-            Self::Float(fl) => write!(f, "{fl}"),
-            // Using numeric booleans for maximum db compatibility
-            Self::Bool(b) => write!(f, "{}", u8::from(*b)),
-            Self::Tuple(t) => {
-                write!(f, "(")?;
-                for (i, item) in t.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{item}")?;
-                }
-                write!(f, ")")
-            }
-            Self::Placeholder => write!(f, "{{PLACEHOLDER}}"),
-            Self::Unhandled => write!(f, "<unhandled>"),
-        }
-    }
-}
-impl Add for ConstType {
-    type Output = Option<Self>;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
-            (Self::Placeholder, _) | (_, Self::Placeholder) => Some(Self::Placeholder),
-            (Self::Str(s1), Self::Str(s2)) => Some(Self::Str(s1 + &s2)),
-            (Self::Int(s1), Self::Int(s2)) => Some(Self::Int(s1 + &s2)),
-            (Self::Float(f1), Self::Float(f2)) => Some(Self::Float(f1 + f2)),
-            (Self::Bool(b1), Self::Bool(b2)) => Some(Self::Bool(b1 || b2)),
-            (Self::Tuple(mut t1), Self::Tuple(t2)) => {
-                t1.extend(t2);
-                Some(Self::Tuple(t1))
-            }
-            (_, _) => None,
-        }
-    }
-}
-impl Sub for ConstType {
-    type Output = Option<Self>;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
-            (Self::Placeholder, _) | (_, Self::Placeholder) => Some(Self::Placeholder),
-            (Self::Float(f1), Self::Float(f2)) => Some(Self::Float(f1 - f2)),
-            (Self::Int(s1), Self::Int(s2)) => {
-                if let (Ok(i1), Ok(i2)) = (s1.parse::<i64>(), s2.parse::<i64>()) {
-                    Some(Self::Int((i1 - i2).to_string()))
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        }
-    }
-}
-
-impl Mul for ConstType {
-    type Output = Option<Self>;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
-            (Self::Placeholder, _) | (_, Self::Placeholder) => Some(Self::Placeholder),
-            (Self::Float(f1), Self::Float(f2)) => Some(Self::Float(f1 * f2)),
-            (Self::Int(s1), Self::Int(s2)) => {
-                if let (Ok(i1), Ok(i2)) = (s1.parse::<i64>(), s2.parse::<i64>()) {
-                    Some(Self::Int((i1 * i2).to_string()))
-                } else {
-                    None
-                }
-            }
-            (Self::Str(s), Self::Int(n)) | (Self::Int(n), Self::Str(s)) => n
-                .parse::<usize>()
-                .ok()
-                .map(|count| Self::Str(s.repeat(count))),
-            _ => None,
-        }
-    }
-}
-
-impl Div for ConstType {
-    type Output = Option<Self>;
-
-    fn div(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
-            (Self::Placeholder, _) | (_, Self::Placeholder) => Some(Self::Placeholder),
-            (Self::Float(f1), Self::Float(f2)) => {
-                if f2.is_normal() {
-                    Some(Self::Float(f1 / f2))
-                } else {
-                    None
-                }
-            }
-
-            (Self::Int(s1), Self::Int(s2)) => {
-                if let (Ok(i1), Ok(i2)) = (s1.parse::<i64>(), s2.parse::<i64>()) {
-                    if i2 == 0 {
-                        Some(Self::Int((i1 / i2).to_string()))
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        }
-    }
 }

@@ -1,4 +1,5 @@
 mod assign;
+mod finder_type;
 mod formatters;
 mod tests;
 use logging::{bail_with, debug, error};
