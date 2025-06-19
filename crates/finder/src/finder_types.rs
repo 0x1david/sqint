@@ -1,7 +1,33 @@
+use std::fmt;
 use std::ops::{Add, Div, Mul, Sub};
 
+#[derive(Debug, Clone)]
+pub(super) struct SearchCtx {
+    pub var_assign: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct SqlExtract {
+    pub file_path: String,
+    pub strings: Vec<SqlString>,
+}
+
+/// Represents a detected SQL variable
+#[derive(Debug, Clone)]
+pub struct SqlString {
+    pub byte_offset: usize,
+    pub variable_name: String,
+    pub sql_content: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct FinderConfig {
+    pub variables: Vec<String>,
+    pub min_sql_length: usize,
+}
+
 #[derive(Debug)]
-pub(crate) enum FinderType {
+pub enum FinderType {
     Str(String),
     Int(String),
     Float(f64),
@@ -120,5 +146,27 @@ impl Div for FinderType {
             }
             _ => None,
         }
+    }
+}
+
+impl fmt::Display for SqlString {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} = {}", self.variable_name, self.sql_content)
+    }
+}
+
+impl fmt::Display for SqlExtract {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "{}", self.file_path)?;
+        for sql_string in &self.strings {
+            writeln!(f, "{sql_string}")?;
+        }
+        Ok(())
+    }
+}
+
+impl Default for SearchCtx {
+    fn default() -> Self {
+        Self { var_assign: true }
     }
 }

@@ -2,8 +2,8 @@
 Test file for SQL linter - contains various patterns of SQL strings
 """
 
-import sqlite3
-import psycopg2
+# import sqlite3
+# import psycopg2
 
 # Simple variable assignments (should be detected)
 query = "SELECT * FROM users WHERE id = 1"
@@ -20,25 +20,25 @@ config_path = "/etc/myapp/config.json"
 regular_string = "This is just a regular string"
 
 # Function calls with SQL (should be detected)
-def get_user_data():
-    cursor.execute("SELECT name, email FROM users WHERE active = 1")
-    return cursor.fetchall()
+# def get_user_data():
+#     cursor.execute("SELECT name, email FROM users WHERE active = 1")
+#     return cursor.fetchall()
 
-def create_user(name, email):
-    db.query("INSERT INTO users (name, email) VALUES (?, ?)", (name, email))
+# def create_user(name, email):
+#     db.query("INSERT INTO users (name, email) VALUES (?, ?)", (name, email))
 
 # Method calls on database objects
-conn = sqlite3.connect('test.db')
-cursor = conn.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)")
-cursor.executemany("INSERT INTO users (name) VALUES (?)", [("Alice",), ("Bob",)])
+# conn = sqlite3.connect('test.db')
+# cursor = conn.cursor()
+# cursor.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)")
+# cursor.executemany("INSERT INTO users (name) VALUES (?)", [("Alice",), ("Bob",)])
 
 # Dictionary with SQL queries
-queries = {
-    "get_all": "SELECT * FROM users",
-    "get_active": "SELECT * FROM users WHERE active = 1",
-    "count_users": "SELECT COUNT(*) FROM users"
-}
+# queries = {
+#     "get_all": "SELECT * FROM users",
+#     "get_active": "SELECT * FROM users WHERE active = 1",
+#     "count_users": "SELECT COUNT(*) FROM users"
+# }
 
 # Multi-line SQL strings
 _sql = """
@@ -70,18 +70,18 @@ class UserRepository:
     
     def find_by_id(self, user_id):
         sql = "SELECT * FROM users WHERE id = ?"
-        return self.conn.execute(sql, (user_id,)).fetchone()
+        # return self.conn.execute(sql, (user_id,)).fetchone()
     
     def create_user(self, name, email):
         query = "INSERT INTO users (name, email) VALUES (?, ?)"
-        self.conn.execute(query, (name, email))
+        # self.conn.execute(query, (name, email))
 
 # Function parameters that are SQL
-def execute_query(sql, params=None):
-    cursor.execute(sql, params or ())
+# def execute_query(sql, params=None):
+#     cursor.execute(sql, params or ())
 
-def run_statement(statement):
-    return db.query(statement)
+# def run_statement(statement):
+#     return db.query(statement)
 
 # Edge cases
 empty_query = ""
@@ -95,8 +95,8 @@ raw_sql = r"SELECT * FROM users WHERE name LIKE '%\_%'"
 table_name = "users"
 dangerous_query = "SELECT * FROM " + table_name  # Should ideally be flagged
 
-if __name__ == "__main__":
-    # More SQL in main execution
-    cursor.execute("SELECT COUNT(*) FROM users")
-    result = cursor.fetchone()
-    print(f"Total users: {result[0]}")
+# if __name__ == "__main__":
+#     # More SQL in main execution
+#     cursor.execute("SELECT COUNT(*) FROM users")
+#     result = cursor.fetchone()
+#     print(f"Total users: {result[0]}")

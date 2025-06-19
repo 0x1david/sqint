@@ -5,6 +5,8 @@ use sqlparser::parser::{Parser, ParserError};
 use finder::{SqlExtract, SqlString};
 use logging::{debug, error, info};
 
+use crate::config::Config;
+
 #[derive(Debug, Clone)]
 pub enum SqlDialect {
     Generic,
@@ -21,7 +23,7 @@ impl SqlAnalyzer {
         Self { dialect }
     }
 
-    pub fn analyze_sql_extract(&self, extract: &SqlExtract) {
+    pub fn analyze_sql_extract(&self, extract: &SqlExtract, cfg: &Config) {
         if extract.strings.is_empty() {
             debug!("Empty extract `{}`", extract.file_path);
         }
@@ -29,6 +31,7 @@ impl SqlAnalyzer {
         extract
             .strings
             .iter()
+            .filter(|s| cfg.variable_names.contains(&s.variable_name))
             .for_each(|sql_string| self.analyze_sql_string(sql_string));
     }
 
@@ -104,7 +107,7 @@ impl SqlError {
 
 /// Prepare SQL for parsing by replacing placeholders with dummy values
 fn fill_placeholders(sql: &str) -> String {
-    sql.replace('?', "'PLACEHOLDER'")
+    sql.replace("{PLACEHOLDER}", "PLACEHOLDER")
         .replace(":1", "'PLACEHOLDER'")
         .replace(":2", "'PLACEHOLDER'")
 }

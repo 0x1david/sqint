@@ -5,10 +5,73 @@
 )]
 
 use logging::bail_with;
+use regex::Regex;
 
-use crate::finder_type::FinderType;
+use crate::finder_types::FinderType;
 
-pub fn format_value_as_unsigned(value: &FinderType) -> Option<String> {
+pub fn format_python_string(
+    format_str: &str,
+    args: &[FinderType],
+    kwargs: &[(String, FinderType)],
+) -> Option<String> {
+    let re = Regex::new(
+        r"%\(([^)]+)\)[-+0 #]*(?:\*|\d+)?(?:\.(?:\*|\d+))?[hlL]?[sdifgGeEoxXcubp%]|%[-+0 #]*(?:\*|\d+)?(?:\.(?:\*|\d+))?[hlL]?[sdifgGeEoxXcubp%]",
+    ).ok()?;
+    let mut result = format_str.to_string();
+    let mut value_index = 0;
+    let matches: Vec<_> = re.find_iter(format_str).collect();
+
+    for m in matches.iter().rev() {
+        let specifier = m.as_str();
+
+        if specifier == "%%" {
+            result.replace_range(m.range(), "%");
+            continue;
+        }
+
+        let (value, conv) = if specifier.starts_with("%(") {
+            // Named format specifier like %(name)s
+            let key_end = specifier.find(')').unwrap();
+            let key = &specifier[2..key_end]; // Extract key between %( and )
+            let conv = specifier.chars().last().unwrap();
+
+            // Find the value in kwargs slice
+            let value = kwargs.iter().find(|(k, _)| k == key).map(|(_, v)| v)?;
+            (value, conv)
+        } else {
+            // Positional format specifier like %s, %d, etc.
+            if value_index >= args.len() {
+                return None;
+            }
+            let value = &args[args.len() - 1 - value_index];
+            value_index += 1;
+            let conv = specifier.chars().last().unwrap();
+            (value, conv)
+        };
+
+        let replacement = match conv {
+            's' => Some(value.to_string()),
+            'd' | 'i' => format_value_as_int(value),
+            'u' => format_value_as_unsigned(value),
+            'b' => format_value_as_binary(value),
+            'f' | 'F' => format_value_as_float(value, specifier),
+            'g' | 'G' => format_value_as_general(value, specifier),
+            'e' | 'E' => format_value_as_scientific(value, specifier),
+            'o' => format_value_as_octal(value),
+            'x' => format_value_as_hex(value, false),
+            'X' => format_value_as_hex(value, true),
+            'c' => format_value_as_char(value),
+            'p' => format_value_as_pointer(value),
+            _ => bail_with!(None, "Unhandled format conversion specifier: {}", conv),
+        };
+
+        result.replace_range(m.range(), &replacement?);
+    }
+
+    Some(result)
+}
+
+fn format_value_as_unsigned(value: &FinderType) -> Option<String> {
     match value {
         FinderType::Int(i) => i.parse::<u64>().ok().map(|i| i.to_string()),
         FinderType::Float(f) => Some((*f as u64).to_string()),
@@ -18,7 +81,7 @@ pub fn format_value_as_unsigned(value: &FinderType) -> Option<String> {
     }
 }
 
-pub fn format_value_as_binary(value: &FinderType) -> Option<String> {
+fn format_value_as_binary(value: &FinderType) -> Option<String> {
     match value {
         FinderType::Int(i) => i.parse::<i64>().ok().map(|i| format!("{i:b}")),
         FinderType::Float(f) => Some(format!("{:b}", *f as i64)),
@@ -27,7 +90,7 @@ pub fn format_value_as_binary(value: &FinderType) -> Option<String> {
     }
 }
 
-pub fn format_value_as_general(value: &FinderType, specifier: &str) -> Option<String> {
+fn format_value_as_general(value: &FinderType, specifier: &str) -> Option<String> {
     let precision = extract_precision(specifier).unwrap_or(6);
     let uppercase = specifier.contains('G');
 
@@ -82,7 +145,7 @@ fn format_general_float(f: f64, precision: usize, uppercase: bool) -> String {
     }
 }
 
-pub fn format_value_as_float(value: &FinderType, specifier: &str) -> Option<String> {
+fn format_value_as_float(value: &FinderType, specifier: &str) -> Option<String> {
     let precision = extract_precision(specifier).unwrap_or(6);
     match value {
         FinderType::Float(f) => Some(format!("{f:.precision$}")),
@@ -97,7 +160,7 @@ pub fn format_value_as_float(value: &FinderType, specifier: &str) -> Option<Stri
     }
 }
 
-pub fn format_value_as_pointer(value: &FinderType) -> Option<String> {
+fn format_value_as_pointer(value: &FinderType) -> Option<String> {
     match value {
         FinderType::Int(i) => i.parse::<usize>().ok().map(|i| format!("0x{i:x}")),
         FinderType::Float(f) => Some(format!("0x{:x}", *f as usize)),
@@ -105,7 +168,7 @@ pub fn format_value_as_pointer(value: &FinderType) -> Option<String> {
     }
 }
 
-pub fn extract_precision(specifier: &str) -> Option<usize> {
+fn extract_precision(specifier: &str) -> Option<usize> {
     specifier.find('.').and_then(|dot_pos| {
         let after_dot = &specifier[dot_pos + 1..];
         after_dot
@@ -113,7 +176,7 @@ pub fn extract_precision(specifier: &str) -> Option<usize> {
             .and_then(|end| after_dot[..end].parse().ok())
     })
 }
-pub fn format_value_as_int(value: &FinderType) -> Option<String> {
+fn format_value_as_int(value: &FinderType) -> Option<String> {
     match value {
         FinderType::Int(i) => Some(i.clone()),
         FinderType::Float(f) => Some((*f as i64).to_string()),
@@ -123,7 +186,7 @@ pub fn format_value_as_int(value: &FinderType) -> Option<String> {
     }
 }
 
-pub fn format_value_as_octal(value: &FinderType) -> Option<String> {
+fn format_value_as_octal(value: &FinderType) -> Option<String> {
     match value {
         FinderType::Int(i) => i.parse::<i64>().ok().map(|i| format!("{i:o}")),
         FinderType::Float(f) => Some(format!("{:o}", *f as i64)),
@@ -132,7 +195,7 @@ pub fn format_value_as_octal(value: &FinderType) -> Option<String> {
     }
 }
 
-pub fn format_value_as_hex(value: &FinderType, uppercase: bool) -> Option<String> {
+fn format_value_as_hex(value: &FinderType, uppercase: bool) -> Option<String> {
     match value {
         FinderType::Int(i) => i.parse::<i64>().ok().map(|i| {
             if uppercase {
@@ -150,7 +213,7 @@ pub fn format_value_as_hex(value: &FinderType, uppercase: bool) -> Option<String
         _ => bail_with!(None, "Unhandled hex value formatting: {value}"),
     }
 }
-pub fn format_value_as_scientific(value: &FinderType, specifier: &str) -> Option<String> {
+fn format_value_as_scientific(value: &FinderType, specifier: &str) -> Option<String> {
     let precision = extract_precision(specifier).unwrap_or(6);
     let uppercase = specifier.contains('E');
 
@@ -188,7 +251,7 @@ pub fn format_value_as_scientific(value: &FinderType, specifier: &str) -> Option
     }
 }
 
-pub fn format_value_as_char(value: &FinderType) -> Option<String> {
+fn format_value_as_char(value: &FinderType) -> Option<String> {
     match value {
         FinderType::Int(i) => {
             if let Ok(code) = i.parse::<u32>() {

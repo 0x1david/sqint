@@ -1,41 +1,18 @@
 mod assign;
-mod finder_type;
-mod formatters;
+mod finder_types;
+mod format;
 mod tests;
+use crate::finder_types::SearchCtx;
+pub use crate::finder_types::{FinderConfig, SqlExtract, SqlString};
 use logging::{bail_with, debug, error};
 use rustpython_parser::{
     Parse,
     ast::{self},
 };
 use std::{
-    fmt, fs,
+    fs,
     path::{Path, PathBuf},
 };
-
-#[derive(Debug, Clone)]
-struct SearchCtx {
-    pub var_assign: bool,
-}
-
-#[derive(Debug, Clone)]
-pub struct SqlExtract {
-    pub file_path: String,
-    pub strings: Vec<SqlString>,
-}
-
-/// Represents a detected SQL variable
-#[derive(Debug, Clone)]
-pub struct SqlString {
-    pub byte_offset: usize,
-    pub variable_name: String,
-    pub sql_content: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct FinderConfig {
-    pub variables: Vec<String>,
-    pub min_sql_length: usize,
-}
 
 pub struct SqlFinder {
     config: FinderConfig,
@@ -61,76 +38,86 @@ impl SqlFinder {
             .inspect_err(|e| error!("Failed to parse Python file: {}", e))
             .ok()?;
 
-        let mut contexts = Vec::new();
-        self.analyze_stmts(&parsed, &mut contexts);
+        let strings = self.analyze_stmts(&parsed);
 
         Some(SqlExtract {
             file_path: file_path.to_string(),
-            strings: contexts,
+            strings,
         })
     }
+    fn analyze_body_and_orelse(
+        &self,
+        body: &Vec<ast::Stmt>,
+        orelse: &Vec<ast::Stmt>,
+    ) -> Vec<SqlString> {
+        self.analyze_stmts(body)
+            .into_iter()
+            .chain(self.analyze_stmts(orelse))
+            .collect()
+    }
 
-    pub(crate) fn analyze_stmts(&self, suite: &ast::Suite, contexts: &mut Vec<SqlString>) {
+    fn analyze_try(
+        &self,
+        body: &Vec<ast::Stmt>,
+        orelse: &Vec<ast::Stmt>,
+        finalbody: &Vec<ast::Stmt>,
+        handlers: &[ast::ExceptHandler],
+    ) -> Vec<SqlString> {
+        self.analyze_stmts(body)
+            .into_iter()
+            .chain(
+                handlers
+                    .iter()
+                    .filter_map(|h| h.as_except_handler())
+                    .flat_map(|eh| self.analyze_stmts(&eh.body)),
+            )
+            .chain(self.analyze_stmts(orelse))
+            .chain(self.analyze_stmts(finalbody))
+            .collect()
+    }
+
+    pub(crate) fn analyze_stmts(&self, suite: &ast::Suite) -> Vec<SqlString> {
+        let mut results = Vec::new();
+
         for stmt in suite {
-            match stmt {
-                ast::Stmt::Assign(a) if self.ctx.var_assign => {
-                    self.analyze_assignment(a, contexts);
-                }
+            let stmt_results = match stmt {
+                ast::Stmt::Assign(a) if self.ctx.var_assign => self.analyze_assignment(a),
                 ast::Stmt::AnnAssign(a) if self.ctx.var_assign => {
-                    self.analyze_annotated_assignment(a, contexts);
+                    self.analyze_annotated_assignment(a)
                 }
+                ast::Stmt::For(f) => self.analyze_body_and_orelse(&f.body, &f.orelse),
+                ast::Stmt::AsyncFor(f) => self.analyze_body_and_orelse(&f.body, &f.orelse),
+                ast::Stmt::While(f) => self.analyze_body_and_orelse(&f.body, &f.orelse),
+                ast::Stmt::If(f) => self.analyze_body_and_orelse(&f.body, &f.orelse),
+
+                ast::Stmt::FunctionDef(f) => self.analyze_stmts(&f.body),
+                ast::Stmt::AsyncFunctionDef(f) => self.analyze_stmts(&f.body),
+                ast::Stmt::ClassDef(f) => self.analyze_stmts(&f.body),
+                ast::Stmt::With(f) => self.analyze_stmts(&f.body),
+                ast::Stmt::AsyncWith(f) => self.analyze_stmts(&f.body),
 
                 ast::Stmt::Try(t) => {
-                    self.analyze_stmts(&t.body, contexts);
-                    t.handlers
-                        .iter()
-                        .filter_map(|h| h.as_except_handler())
-                        .for_each(|h| self.analyze_stmts(&h.body, contexts));
-                    self.analyze_stmts(&t.orelse, contexts);
-                    self.analyze_stmts(&t.finalbody, contexts);
+                    self.analyze_try(&t.body, &t.orelse, &t.finalbody, &t.handlers)
                 }
                 ast::Stmt::TryStar(t) => {
-                    self.analyze_stmts(&t.body, contexts);
-                    t.handlers
-                        .iter()
-                        .filter_map(|h| h.as_except_handler())
-                        .for_each(|h| self.analyze_stmts(&h.body, contexts));
-                    self.analyze_stmts(&t.orelse, contexts);
-                    self.analyze_stmts(&t.finalbody, contexts);
+                    self.analyze_try(&t.body, &t.orelse, &t.finalbody, &t.handlers)
                 }
 
-                ast::Stmt::For(f) => {
-                    self.analyze_stmts(&f.body, contexts);
-                    self.analyze_stmts(&f.orelse, contexts);
-                }
-                ast::Stmt::AsyncFor(f) => {
-                    self.analyze_stmts(&f.body, contexts);
-                    self.analyze_stmts(&f.orelse, contexts);
-                }
-                ast::Stmt::While(f) => {
-                    self.analyze_stmts(&f.body, contexts);
-                    self.analyze_stmts(&f.orelse, contexts);
-                }
-                ast::Stmt::If(f) => {
-                    self.analyze_stmts(&f.body, contexts);
-                    self.analyze_stmts(&f.orelse, contexts);
-                }
+                ast::Stmt::Match(f) => f
+                    .cases
+                    .iter()
+                    .flat_map(|c| self.analyze_stmts(&c.body))
+                    .collect(),
 
-                ast::Stmt::FunctionDef(f) => self.analyze_stmts(&f.body, contexts),
-                ast::Stmt::AsyncFunctionDef(f) => self.analyze_stmts(&f.body, contexts),
-                ast::Stmt::ClassDef(f) => self.analyze_stmts(&f.body, contexts),
-                ast::Stmt::With(f) => self.analyze_stmts(&f.body, contexts),
-                ast::Stmt::AsyncWith(f) => self.analyze_stmts(&f.body, contexts),
-
-                ast::Stmt::Match(f) => {
-                    f.cases
-                        .iter()
-                        .for_each(|c| self.analyze_stmts(&c.body, contexts));
+                _ => {
+                    bail_with!(vec![], "Unimplemented stmt: {:?}", stmt)
                 }
+            };
 
-                _ => bail_with!((), "Unimplemented stmt: {:?}", stmt),
-            }
+            results.extend(stmt_results);
         }
+
+        results
     }
 
     /// Check if variable name suggests it contains SQL
@@ -194,26 +181,4 @@ pub fn is_python_file(file: &Path) -> bool {
         debug!("Not a python file {}", file.display());
     }
     b
-}
-
-impl fmt::Display for SqlString {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} = {}", self.variable_name, self.sql_content)
-    }
-}
-
-impl fmt::Display for SqlExtract {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "{}", self.file_path)?;
-        for sql_string in &self.strings {
-            writeln!(f, "{sql_string}")?;
-        }
-        Ok(())
-    }
-}
-
-impl Default for SearchCtx {
-    fn default() -> Self {
-        Self { var_assign: true }
-    }
 }

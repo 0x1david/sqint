@@ -20,8 +20,7 @@ mod tests {
     fn harness_find(code: &str, expected: Vec<(&str, &str)>, name: &str) {
         let parsed = ast::Suite::parse(code, "test.py").expect("Failed to parse");
         let finder = harness_create_test_finder();
-        let mut contexts = Vec::new();
-        finder.analyze_stmts(&parsed, &mut contexts);
+        let contexts = finder.analyze_stmts(&parsed);
 
         assert_eq!(
             contexts.len(),
