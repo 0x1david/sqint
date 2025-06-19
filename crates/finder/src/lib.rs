@@ -78,28 +78,26 @@ impl SqlFinder {
                 ast::Stmt::AnnAssign(a) if self.ctx.var_assign => {
                     self.analyze_annotated_assignment(a, contexts);
                 }
+
                 ast::Stmt::Try(t) => {
                     self.analyze_stmts(&t.body, contexts);
-
                     t.handlers
                         .iter()
                         .filter_map(|h| h.as_except_handler())
                         .for_each(|h| self.analyze_stmts(&h.body, contexts));
-
                     self.analyze_stmts(&t.orelse, contexts);
                     self.analyze_stmts(&t.finalbody, contexts);
                 }
                 ast::Stmt::TryStar(t) => {
                     self.analyze_stmts(&t.body, contexts);
-
                     t.handlers
                         .iter()
                         .filter_map(|h| h.as_except_handler())
                         .for_each(|h| self.analyze_stmts(&h.body, contexts));
-
                     self.analyze_stmts(&t.orelse, contexts);
                     self.analyze_stmts(&t.finalbody, contexts);
                 }
+
                 ast::Stmt::For(f) => {
                     self.analyze_stmts(&f.body, contexts);
                     self.analyze_stmts(&f.orelse, contexts);
@@ -108,35 +106,28 @@ impl SqlFinder {
                     self.analyze_stmts(&f.body, contexts);
                     self.analyze_stmts(&f.orelse, contexts);
                 }
-                ast::Stmt::FunctionDef(f) => {
+                ast::Stmt::While(f) => {
                     self.analyze_stmts(&f.body, contexts);
-                }
-                ast::Stmt::AsyncFunctionDef(f) => {
-                    self.analyze_stmts(&f.body, contexts);
-                }
-                ast::Stmt::ClassDef(f) => {
-                    self.analyze_stmts(&f.body, contexts);
+                    self.analyze_stmts(&f.orelse, contexts);
                 }
                 ast::Stmt::If(f) => {
                     self.analyze_stmts(&f.body, contexts);
                     self.analyze_stmts(&f.orelse, contexts);
                 }
-                ast::Stmt::With(f) => {
-                    self.analyze_stmts(&f.body, contexts);
-                }
-                ast::Stmt::AsyncWith(f) => {
-                    self.analyze_stmts(&f.body, contexts);
-                }
-                ast::Stmt::While(f) => {
-                    self.analyze_stmts(&f.body, contexts);
-                    self.analyze_stmts(&f.orelse, contexts);
-                }
+
+                ast::Stmt::FunctionDef(f) => self.analyze_stmts(&f.body, contexts),
+                ast::Stmt::AsyncFunctionDef(f) => self.analyze_stmts(&f.body, contexts),
+                ast::Stmt::ClassDef(f) => self.analyze_stmts(&f.body, contexts),
+                ast::Stmt::With(f) => self.analyze_stmts(&f.body, contexts),
+                ast::Stmt::AsyncWith(f) => self.analyze_stmts(&f.body, contexts),
+
                 ast::Stmt::Match(f) => {
-                    for c in &f.cases {
-                        self.analyze_stmts(&c.body, contexts)
-                    }
+                    f.cases
+                        .iter()
+                        .for_each(|c| self.analyze_stmts(&c.body, contexts));
                 }
-                _ => bail_with!((), "Unimplemented stmt: {:?}", suite),
+
+                _ => bail_with!((), "Unimplemented stmt: {:?}", stmt),
             }
         }
     }
