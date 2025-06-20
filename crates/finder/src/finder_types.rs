@@ -2,6 +2,26 @@ use std::collections::HashSet;
 use std::fmt;
 use std::ops::{Add, Div, Mul, Sub};
 
+// Internal result type for processing
+#[derive(Debug, Clone)]
+pub struct SqlResult {
+    pub byte_offset: usize,
+    pub variable_name: String,
+    pub content: FinderType,
+}
+
+impl SqlResult {
+    pub fn into_sql_string(self) -> Option<SqlString> {
+        match self.content {
+            FinderType::Str(sql_content) => Some(SqlString {
+                byte_offset: self.byte_offset,
+                variable_name: self.variable_name,
+                sql_content,
+            }),
+            _ => None,
+        }
+    }
+}
 #[derive(Debug, Clone)]
 pub struct SearchCtx {
     pub var_assign: bool,
@@ -28,7 +48,7 @@ pub struct FinderConfig {
     pub func_names: HashSet<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FinderType {
     Str(String),
     Int(String),
@@ -38,6 +58,7 @@ pub enum FinderType {
     Placeholder,
     Unhandled,
 }
+
 impl std::fmt::Display for FinderType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

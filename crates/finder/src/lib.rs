@@ -48,7 +48,6 @@ impl SqlFinder {
 
     pub(crate) fn analyze_stmts(&self, suite: &ast::Suite) -> Vec<SqlString> {
         let mut results = Vec::new();
-
         for stmt in suite {
             let stmt_results = match stmt {
                 ast::Stmt::Assign(a) if self.ctx.var_assign => self.analyze_assignment(a),

@@ -1,6 +1,5 @@
 #![allow(clippy::needless_collect)]
-use crate::finder_types::FinderType;
-
+use crate::finder_types::{FinderType, SqlResult};
 use crate::format::format_python_string;
 use crate::{SqlFinder, SqlString};
 use logging::{bail, bail_with};
@@ -13,94 +12,111 @@ use rustpython_parser::{
 // Public API
 impl SqlFinder {
     pub(super) fn analyze_assignment(&self, assign: &ast::StmtAssign) -> Vec<SqlString> {
-        let mut sqls = vec![];
+        let mut results = vec![];
         assign.targets.iter().for_each(|target| {
-            let results = self.process_assignment_target(
+            let sql_results = self.process_assignment_target(
                 target,
                 &assign.value,
                 assign.range.start().to_usize(),
             );
-            sqls.extend(results);
+            results.extend(
+                sql_results
+                    .into_iter()
+                    .filter_map(SqlResult::into_sql_string),
+            );
         });
-        sqls
+        results
     }
 
     pub(super) fn analyze_stmt_expr(&self, e: &ast::StmtExpr) -> Vec<SqlString> {
-        self.process_expr_stmt(&e.value, e.range.start().to_usize())
+        let results = self.process_expr_stmt(&e.value, e.range.start().to_usize());
+        results
+            .into_iter()
+            .filter_map(SqlResult::into_sql_string)
+            .collect()
     }
 
     pub(super) fn analyze_annotated_assignment(
         &self,
         assign: &ast::StmtAnnAssign,
     ) -> Vec<SqlString> {
-        let mut sqls = vec![];
+        let mut results = vec![];
         if let Some(val) = &assign.value {
-            let results = self.process_assignment_target(
+            let sql_results = self.process_assignment_target(
                 &assign.target,
                 val,
                 assign.range.start().to_usize(),
             );
-            sqls.extend(results);
+            results.extend(
+                sql_results
+                    .into_iter()
+                    .filter_map(SqlResult::into_sql_string),
+            );
         }
-        sqls
+        results
     }
 }
 
-// Assignment target processing
+// Internal processing
 impl SqlFinder {
-    fn process_expr_stmt(&self, value: &ast::Expr, byte_offset: usize) -> Vec<SqlString> {
+    fn process_expr_stmt(&self, value: &ast::Expr, byte_offset: usize) -> Vec<SqlResult> {
         match value {
             ast::Expr::Call(call) => self.process_call_expr(call, byte_offset),
-            ast::Expr::Attribute(_) => {
-                // Handle method calls like obj.execute(sql)
-                if let ast::Expr::Call(call) = value {
-                    self.process_call_expr(call, byte_offset)
-                } else {
-                    vec![]
-                }
-            }
+            ast::Expr::Attribute(_) => match value {
+                ast::Expr::Call(call) => self.process_call_expr(call, byte_offset),
+                _ => bail_with!(vec![], "Unhandled expr_stmt value pattern: {:?}", value),
+            },
             _ => {
                 bail_with!(vec![], "Unhandled expr_stmt value pattern: {:?}", value)
             }
         }
     }
 
-    fn process_call_expr(&self, call: &ast::ExprCall, byte_offset: usize) -> Vec<SqlString> {
+    fn process_call_expr(&self, call: &ast::ExprCall, byte_offset: usize) -> Vec<SqlResult> {
         let function_name = Self::extract_function_name(&call.func);
 
         if !self.is_sql_function_name(&function_name) {
             return vec![];
         }
 
-        let keyword_sqls = call.keywords.iter().filter_map(|keyword| {
-            keyword.arg.as_ref().and_then(|arg_name| {
+        let keyword_results = call.keywords.iter().flat_map(|keyword| {
+            keyword.arg.as_ref().map_or(vec![], |arg_name| {
                 if self.is_sql_parameter_name(arg_name) {
-                    Self::extract_string_content(&keyword.value).map(|sql_content| SqlString {
-                        byte_offset,
-                        variable_name: format!("{}({})", function_name, arg_name),
-                        sql_content,
-                    })
+                    self.extract_content_flattened(&keyword.value, &function_name, byte_offset)
                 } else {
-                    None
+                    vec![]
                 }
             })
         });
 
-        let sqls = call
+        let arg_results = call
             .args
             .iter()
-            .enumerate()
-            .filter_map(|(i, arg)| {
-                Self::extract_string_content(arg).map(|sql_content| SqlString {
-                    byte_offset,
-                    variable_name: function_name.to_string(),
-                    sql_content,
-                })
-            })
-            .chain(keyword_sqls)
-            .collect();
+            .flat_map(|arg| self.extract_content_flattened(arg, &function_name, byte_offset));
 
-        sqls
+        arg_results.chain(keyword_results).collect()
+    }
+
+    fn extract_content_flattened(
+        &self,
+        expr: &ast::Expr,
+        variable_name: &str,
+        byte_offset: usize,
+    ) -> Vec<SqlResult> {
+        match expr {
+            ast::Expr::List(ast::ExprList { elts, .. })
+            | ast::Expr::Tuple(ast::ExprTuple { elts, .. }) => elts
+                .iter()
+                .flat_map(|elem| self.extract_content_flattened(elem, variable_name, byte_offset))
+                .collect(),
+            _ => self.extract_content(expr).map_or_else(Vec::new, |content| {
+                vec![SqlResult {
+                    byte_offset,
+                    variable_name: variable_name.to_string(),
+                    content,
+                }]
+            }),
+        }
     }
 
     fn process_assignment_target(
@@ -108,7 +124,7 @@ impl SqlFinder {
         target: &ast::Expr,
         value: &ast::Expr,
         byte_offset: usize,
-    ) -> Vec<SqlString> {
+    ) -> Vec<SqlResult> {
         match target {
             ast::Expr::Name(name) => self.process_by_ident(&name.id, value, byte_offset),
             ast::Expr::Attribute(att) => self.process_by_ident(&att.attr, value, byte_offset),
@@ -116,8 +132,6 @@ impl SqlFinder {
                 self.handle_tuple_assignment(&tuple.elts, value, byte_offset)
             }
             ast::Expr::List(list) => self.handle_tuple_assignment(&list.elts, value, byte_offset),
-
-            // Other patterns like attribute access (obj.attr = ...) or subscript (arr[0] = ...)
             _ => {
                 bail_with!(vec![], "Unhandled assignment target pattern: {:?}", target)
             }
@@ -129,15 +143,10 @@ impl SqlFinder {
         name: &Identifier,
         value: &ast::Expr,
         byte_offset: usize,
-    ) -> Vec<SqlString> {
+    ) -> Vec<SqlResult> {
         if self.is_sql_variable_name(name) {
-            if let Some(sql_content) = Self::extract_string_content(value) {
-                return vec![SqlString {
-                    byte_offset,
-                    variable_name: name.to_string(),
-                    sql_content,
-                }];
-            }
+            // Use the flattened extraction for assignments too
+            return self.extract_content_flattened(value, name, byte_offset);
         }
         vec![]
     }
@@ -147,7 +156,7 @@ impl SqlFinder {
         targets: &[ast::Expr],
         value: &ast::Expr,
         byte_offset: usize,
-    ) -> Vec<SqlString> {
+    ) -> Vec<SqlResult> {
         let has_sql_target = targets
             .iter()
             .any(|target| self.target_contains_sql_variable(target));
@@ -173,7 +182,7 @@ impl SqlFinder {
         targets: &[ast::Expr],
         values: &[ast::Expr],
         byte_offset: usize,
-    ) -> Vec<SqlString> {
+    ) -> Vec<SqlResult> {
         let mut results = Vec::new();
         let mut value_idx = 0;
 
@@ -204,6 +213,7 @@ impl SqlFinder {
 
         results
     }
+
     fn target_contains_sql_variable(&self, target: &ast::Expr) -> bool {
         match target {
             ast::Expr::Name(name) => self.is_sql_variable_name(&name.id),
@@ -222,132 +232,145 @@ impl SqlFinder {
     }
 }
 
-// String extraction
+// Content extraction
 impl SqlFinder {
     fn extract_function_name(func_expr: &ast::Expr) -> String {
         match func_expr {
             ast::Expr::Name(name) => name.id.to_string(),
             ast::Expr::Attribute(attr) => {
-                // Handle method calls like cursor.execute, db.query...
                 format!("{}.{}", Self::extract_function_name(&attr.value), attr.attr)
             }
-            _ => "unknown_function".to_string(),
+            _ => bail_with!(
+                String::new(),
+                "Unknown function expression: {:?}",
+                &func_expr
+            ),
         }
     }
-    fn extract_string_content(expr: &ast::Expr) -> Option<String> {
+
+    fn extract_content(&self, expr: &ast::Expr) -> Option<FinderType> {
         match expr {
-            ast::Expr::Constant(c) => {
-                if let ast::Constant::Str(s) = &c.value {
-                    Some(s.clone())
-                } else {
-                    bail_with!(None, "constant string: {:?}", c)
-                }
-            }
-            ast::Expr::Subscript(_) | ast::Expr::Name(_) => Some(format!("{{{}}}", "PLACEHOLDER")),
-            ast::Expr::Call(c) => Self::extract_call(c),
-            ast::Expr::FormattedValue(f) => Self::extract_string_content(&f.value),
-            ast::Expr::BinOp(b) => Self::extract_from_bin_op(b),
-            ast::Expr::JoinedStr(j) => j.values.iter().try_fold(String::new(), |mut acc, val| {
-                Self::extract_string_content(val).map(|s| {
-                    acc.push_str(&s);
-                    acc
-                })
-            }),
+            ast::Expr::Constant(c) => Some(Self::extract_expr_const(c)),
+            ast::Expr::Subscript(_) | ast::Expr::Name(_) => Some(FinderType::Placeholder),
+            ast::Expr::Call(c) => self.extract_call(c),
+            ast::Expr::FormattedValue(f) => self.extract_content(&f.value),
+            ast::Expr::BinOp(b) => self.extract_from_bin_op(b),
 
-            _ => bail_with!(None, "Not a string literal: {:?}", expr),
+            ast::Expr::JoinedStr(j) => {
+                let parts: Option<Vec<FinderType>> = j
+                    .values
+                    .iter()
+                    .map(|val| self.extract_content(val))
+                    .collect();
+
+                parts.map(|parts| {
+                    let combined = parts.into_iter().map(|p| p.to_string()).collect::<String>();
+                    FinderType::Str(combined)
+                })
+            }
+            _ => bail_with!(None, "Not extractable content: {:?}", expr),
         }
     }
 
-    fn extract_from_bin_op(v: &ast::ExprBinOp<TextRange>) -> Option<String> {
-        dbg!(v);
+    fn extract_from_bin_op(&self, v: &ast::ExprBinOp<TextRange>) -> Option<FinderType> {
         match &v.op {
             ast::Operator::Mod => {
-                let expr_string = match &*v.left {
-                    ast::Expr::Constant(c) => Self::extract_expr_const(c),
-                    otherwise => {
-                        bail!(None, "Expected format string on LHS, got: {:?}", otherwise);
-                    }
-                };
+                let expr_content = self.extract_content(&v.left)?;
 
                 let (args, kwargs) = match &*v.right {
-                    ast::Expr::Tuple(t) => {
-                        (t.elts.iter().map(Self::extract_expr).collect(), vec![])
-                    }
-                    ast::Expr::List(l) => (l.elts.iter().map(Self::extract_expr).collect(), vec![]),
+                    ast::Expr::Constant(c) => (vec![Self::extract_expr_const(c)], vec![]),
+
+                    ast::Expr::Tuple(ast::ExprTuple { elts, .. })
+                    | ast::Expr::List(ast::ExprList { elts, .. }) => (
+                        elts.iter()
+                            .filter_map(|e| self.extract_content(e))
+                            .collect(),
+                        vec![],
+                    ),
                     ast::Expr::Dict(d) => {
                         let keys: Vec<String> = d
                             .keys
                             .iter()
                             .filter_map(|k| k.as_ref())
-                            .map(Self::extract_expr)
+                            .filter_map(|e| self.extract_content(e))
                             .map(|k| k.to_string())
                             .collect();
 
-                        let values: Vec<FinderType> =
-                            d.values.iter().map(Self::extract_expr).collect();
-                        let kwargs = keys.into_iter().zip(values).collect();
+                        let values: Vec<FinderType> = d
+                            .values
+                            .iter()
+                            .filter_map(|e| self.extract_content(e))
+                            .collect();
 
+                        let kwargs = keys.into_iter().zip(values).collect();
                         (vec![], kwargs)
                     }
-                    ast::Expr::Constant(c) => (vec![Self::extract_expr_const(c)], vec![]),
-                    otherwise => {
-                        bail_with!((vec![], vec![]), "Unhandled rhs expr type: {:?}", otherwise)
-                    }
+                    _ => bail_with!((vec![], vec![]), "Unhandled rhs expr type: {:?}", v.right),
                 };
 
-                if let FinderType::Str(fmt_string) = expr_string {
-                    return format_python_string(&fmt_string, &args, &kwargs);
+                match expr_content {
+                    FinderType::Str(fmt_string) => {
+                        format_python_string(&fmt_string, &args, &kwargs).map(FinderType::Str)
+                    }
+                    other => Some(other),
                 }
-                None
             }
-            otherwise => Self::extract_arithmetic(&v.left, &v.right, *otherwise),
+            _ => self.extract_arithmetic(&v.left, &v.right, v.op),
         }
     }
 
-    fn extract_arithmetic(lhs: &ast::Expr, rhs: &ast::Expr, op: ast::Operator) -> Option<String> {
-        let lhs = match lhs {
-            ast::Expr::Constant(c) => Self::extract_expr_const(c),
-            ast::Expr::Name(_) => FinderType::Placeholder,
-            otherwise => {
-                bail!(None, "Expected format string on LHS, got: {:?}", otherwise);
-            }
-        };
+    fn extract_arithmetic(
+        &self,
+        lhs: &ast::Expr,
+        rhs: &ast::Expr,
+        op: ast::Operator,
+    ) -> Option<FinderType> {
+        let lhs_content = self.extract_content(lhs)?;
+        let rhs_content = self.extract_content(rhs)?;
 
-        let rhs = match rhs {
-            ast::Expr::Constant(c) => Self::extract_expr_const(c),
-            ast::Expr::Name(_) => FinderType::Placeholder,
-            otherwise => {
-                bail!(None, "Expected format string on LHS, got: {:?}", otherwise);
-            }
-        };
-        dbg!(&lhs, &rhs);
-        let result = match op {
-            ast::Operator::Add => lhs + rhs,
-            ast::Operator::Sub => lhs - rhs,
-            ast::Operator::Mult => lhs * rhs,
-            ast::Operator::Div => lhs / rhs,
+        match op {
+            ast::Operator::Add => lhs_content + rhs_content,
+            ast::Operator::Sub => lhs_content - rhs_content,
+            ast::Operator::Mult => lhs_content * rhs_content,
+            ast::Operator::Div => lhs_content / rhs_content,
             _ => bail!(None, "Unexpected operator in extraction: {:?}", op),
-        };
-        Some(result?.to_string())
+        }
     }
 
-    fn extract_call(v: &ast::ExprCall<TextRange>) -> Option<String> {
-        dbg!(v);
+    fn extract_call(&self, v: &ast::ExprCall<TextRange>) -> Option<FinderType> {
+        dbg!(&v);
         match &*v.func {
+            ast::Expr::Call(nested_call) => self.extract_call(nested_call),
             ast::Expr::Attribute(ast::ExprAttribute { attr, value, .. })
                 if attr.as_str() == "format" =>
             {
-                Self::extract_format_call(&v.args, &v.keywords, value)
+                self.extract_format_call(&v.args, &v.keywords, value)
             }
-            _ => Some(format!("{{{}}}", "PLACEHOLDER")),
+            ast::Expr::Name(name) => {
+                if self.is_sql_function_name(&name.id) {
+                    v.args.iter().find_map(|arg| self.extract_content(arg))
+                } else {
+                    None
+                }
+            }
+            ast::Expr::Attribute(_) => {
+                let method_name = Self::extract_function_name(&v.func);
+                if self.is_sql_function_name(&method_name) {
+                    v.args.iter().find_map(|arg| self.extract_content(arg))
+                } else {
+                    None
+                }
+            }
+            _ => bail_with!(None, "Unhandled function call type: {:?}", v.func),
         }
     }
 
     fn extract_format_call(
+        &self,
         args: &[ast::Expr],
         kwargs: &[ast::Keyword],
         value: &ast::Expr,
-    ) -> Option<String> {
+    ) -> Option<FinderType> {
         let mut pos_fills = vec![];
         let mut kw_fills = vec![];
         let mut has_unpacked_dict = false;
@@ -355,11 +378,17 @@ impl SqlFinder {
         for a in args {
             let parsed = match a {
                 ast::Expr::Constant(c) => vec![Self::extract_expr_const(c)],
-                ast::Expr::List(els) => els.elts.iter().map(Self::extract_expr).collect(),
+                ast::Expr::List(els) => els
+                    .elts
+                    .iter()
+                    .filter_map(|e| self.extract_content(e))
+                    .collect(),
                 ast::Expr::Subscript(_) | ast::Expr::Name(_) | ast::Expr::Call(_) => {
                     vec![FinderType::Placeholder]
                 }
-                ast::Expr::BinOp(b) => vec![FinderType::Str(Self::extract_from_bin_op(b)?)],
+                ast::Expr::BinOp(b) => self
+                    .extract_from_bin_op(b)
+                    .map_or_else(|| vec![FinderType::Unhandled], |content| vec![content]),
                 _ => bail_with!(
                     vec![FinderType::Unhandled],
                     "Unhandled value in args: {:?}",
@@ -373,21 +402,23 @@ impl SqlFinder {
 
         for kw in kwargs {
             if let Some(name) = &kw.arg {
-                let val = Self::extract_expr(&kw.value);
-                kw_fills.push((name.clone(), val));
+                if let Some(val) = self.extract_content(&kw.value) {
+                    kw_fills.push((name.clone(), val));
+                }
             } else {
                 has_unpacked_dict = true;
             }
         }
 
-        let mut result = Self::extract_expr(value).to_string();
+        let base_content = self.extract_content(value)?;
+        let mut result = base_content.to_string();
 
         if has_unpacked_dict {
-            let re = Regex::new(r"\{[^}]+\}").unwrap();
+            let re = Regex::new(r"\{[^}]+\}").expect("Broke the regex format call finder.");
             result = re.replace_all(&result, "{PLACEHOLDER}").to_string();
         } else {
-            use regex::Regex;
-            let numbered_re = Regex::new(r"\{(\d+)\}").unwrap();
+            let numbered_re =
+                Regex::new(r"\{(\d+)\}").expect("Broke the regex format call finder.");
             result = numbered_re
                 .replace_all(&result, |caps: &regex::Captures| {
                     let index: usize = caps[1].parse().unwrap_or(0);
@@ -409,19 +440,11 @@ impl SqlFinder {
             }
         }
 
-        Some(result)
+        Some(FinderType::Str(result))
     }
 
-    fn extract_expr(expr: &ast::Expr<TextRange>) -> FinderType {
-        if let ast::Expr::Constant(v) = expr {
-            Self::extract_expr_const(v)
-        } else {
-            bail_with!(
-                FinderType::Unhandled,
-                "Unhandled Expression for Extraction: {:?}",
-                expr
-            )
-        }
+    fn extract_expr_const(c: &ast::ExprConstant<TextRange>) -> FinderType {
+        Self::extract_const(&c.value)
     }
 
     fn extract_const(c: &ast::Constant) -> FinderType {
@@ -435,9 +458,5 @@ impl SqlFinder {
             }
             _ => bail_with!(FinderType::Unhandled, "Unhandled Constant: {:?}", c),
         }
-    }
-
-    fn extract_expr_const(c: &ast::ExprConstant<TextRange>) -> FinderType {
-        Self::extract_const(&c.value)
     }
 }
