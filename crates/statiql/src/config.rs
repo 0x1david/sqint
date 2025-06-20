@@ -11,6 +11,8 @@ pub const DEFAULT_CONFIG: &str = include_str!("./assets/default.toml");
 #[serde(default)]
 pub struct Config {
     pub variable_names: Vec<String>,
+    pub func_names: Vec<String>,
+    pub kw_param_names: Vec<String>,
     pub file_patterns: Vec<String>,
     pub exclude_patterns: Vec<String>,
     pub targets: Vec<String>,
@@ -44,6 +46,14 @@ impl Default for Config {
                 "update_query".to_string(),
                 "delete_query".to_string(),
             ],
+            func_names: vec![
+                "fetchall".to_string(),
+                "execute".to_string(),
+                "fetchone".to_string(),
+                "select".to_string(),
+                "fetch_records".to_string(),
+            ],
+            kw_param_names: vec!["query".to_string(), "sql".to_string(), "select".to_string()],
             targets: vec![".".to_string()],
             file_patterns: vec![
                 "*.py".to_string(),

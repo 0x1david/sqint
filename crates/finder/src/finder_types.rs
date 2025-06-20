@@ -46,6 +46,7 @@ pub struct FinderConfig {
     pub variables: HashSet<String>,
     pub min_sql_length: usize,
     pub func_names: HashSet<String>,
+    pub kw_param_names: HashSet<String>,
 }
 
 #[derive(Debug, Clone)]

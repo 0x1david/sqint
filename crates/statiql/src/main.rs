@@ -38,6 +38,12 @@ fn handle_check(args: &CheckArgs, config: &Config, cli: &Cli) {
             .map(|f| f.to_lowercase())
             .collect(),
         min_sql_length: config.min_sql_length,
+        func_names: config.func_names.iter().map(|f| f.to_lowercase()).collect(),
+        kw_param_names: config
+            .kw_param_names
+            .iter()
+            .map(|f| f.to_lowercase())
+            .collect(),
     };
     let sql_finder = SqlFinder::new(cfg);
 

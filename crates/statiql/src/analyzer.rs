@@ -74,29 +74,39 @@ impl SqlError {
     }
 
     fn from_parser_error(e: ParserError) -> Self {
-        match e {
+        match dbg!(e) {
             ParserError::ParserError(msg) | ParserError::TokenizerError(msg) => {
                 let line_marker = " at Line: ";
                 let col_marker = ", Column: ";
 
-                let line_start_idx = msg
-                    .find(line_marker)
-                    .expect("Should always contain line information.");
+                // Check if line information is present in the error message
+                if let Some(line_start_idx) = msg.find(line_marker) {
+                    let line_num_start = line_start_idx + line_marker.len();
 
-                let line_num_start = line_start_idx + line_marker.len();
-
-                let comma_idx = msg[line_num_start..]
-                    .find(col_marker)
-                    .expect("Should always contain col information.");
-
-                let line_num_end = line_num_start + comma_idx;
-                let col_num_start = line_num_end + col_marker.len();
-
-                let line = msg[line_num_start..line_num_end].parse().unwrap_or(0);
-                let column = msg[col_num_start..].parse().unwrap_or(0);
-
-                let reason_msg = msg[..line_start_idx].to_string();
-                Self::new(reason_msg, line, column)
+                    // Check if column information is also present
+                    if let Some(comma_idx) = msg[line_num_start..].find(col_marker) {
+                        let line_num_end = line_num_start + comma_idx;
+                        let col_num_start = line_num_end + col_marker.len();
+                        let line = msg[line_num_start..line_num_end].parse().unwrap_or(0);
+                        let column = msg[col_num_start..].parse().unwrap_or(0);
+                        let reason_msg = msg[..line_start_idx].to_string();
+                        Self::new(reason_msg, line, column)
+                    } else {
+                        // Line marker found but no column marker
+                        Self::new(
+                            "Malformed error message: missing column information".to_string(),
+                            0,
+                            0,
+                        )
+                    }
+                } else {
+                    // No line information available in the error message
+                    Self::new(
+                        "SQL parsing error with no position information".to_string(),
+                        0,
+                        0,
+                    )
+                }
             }
             ParserError::RecursionLimitExceeded => {
                 Self::new("Recursion Limit Exceeded".to_string(), 0, 0)
