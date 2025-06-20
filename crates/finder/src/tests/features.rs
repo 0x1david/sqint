@@ -1034,8 +1034,8 @@ queries = {
 }
         "#,
             vec![
-                ("query_fun", "SELECT * FROM users"),
-                ("sql_fun", "SELECT * FROM orders"),
+                ("queries", "SELECT * FROM users"),
+                ("queries", "SELECT * FROM orders"),
             ],
             "function calls in dictionary context",
         );

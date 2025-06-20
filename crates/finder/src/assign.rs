@@ -109,6 +109,12 @@ impl SqlFinder {
                 .iter()
                 .flat_map(|elem| self.extract_content_flattened(elem, variable_name, byte_offset))
                 .collect(),
+
+            ast::Expr::Dict(ast::ExprDict { values, .. }) => values
+                .iter()
+                .flat_map(|elem| self.extract_content_flattened(elem, variable_name, byte_offset))
+                .collect(),
+
             _ => self.extract_content(expr).map_or_else(Vec::new, |content| {
                 vec![SqlResult {
                     byte_offset,
