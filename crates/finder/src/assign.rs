@@ -110,7 +110,8 @@ impl SqlFinder {
                 .flat_map(|elem| self.extract_content_flattened(elem, variable_name, byte_offset))
                 .collect(),
 
-            ast::Expr::Dict(ast::ExprDict { values, .. }) => values
+            ast::Expr::Dict(ast::ExprDict { values, .. })
+            | ast::Expr::BoolOp(ast::ExprBoolOp { values, .. }) => values
                 .iter()
                 .flat_map(|elem| self.extract_content_flattened(elem, variable_name, byte_offset))
                 .collect(),
@@ -277,7 +278,6 @@ impl SqlFinder {
             _ => bail_with!(None, "Not extractable content: {:?}", expr),
         }
     }
-
     fn extract_from_bin_op(&self, v: &ast::ExprBinOp<TextRange>) -> Option<FinderType> {
         match &v.op {
             ast::Operator::Mod => {
@@ -347,21 +347,15 @@ impl SqlFinder {
         dbg!(&v);
         match &*v.func {
             ast::Expr::Call(nested_call) => self.extract_call(nested_call),
-            ast::Expr::Attribute(ast::ExprAttribute { attr, value, .. })
-                if attr.as_str() == "format" =>
-            {
-                self.extract_format_call(&v.args, &v.keywords, value)
+            ast::Expr::Attribute(ast::ExprAttribute { attr, value, .. }) => {
+                if attr.as_str() == "format" {
+                    self.extract_format_call(&v.args, &v.keywords, value)
+                } else {
+                    self.extract_content(value)
+                }
             }
             ast::Expr::Name(name) => {
                 if self.is_sql_function_name(&name.id) {
-                    v.args.iter().find_map(|arg| self.extract_content(arg))
-                } else {
-                    None
-                }
-            }
-            ast::Expr::Attribute(_) => {
-                let method_name = Self::extract_function_name(&v.func);
-                if self.is_sql_function_name(&method_name) {
                     v.args.iter().find_map(|arg| self.extract_content(arg))
                 } else {
                     None
