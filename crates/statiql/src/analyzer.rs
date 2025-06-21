@@ -15,11 +15,16 @@ pub enum SqlDialect {
 }
 
 pub struct SqlAnalyzer {
-    dialect: SqlDialect,
+    dialect: Box<dyn sqlparser::dialect::Dialect>,
 }
 
 impl SqlAnalyzer {
-    pub const fn new(dialect: SqlDialect) -> Self {
+    pub fn new(dialect: SqlDialect) -> Self {
+        let dialect: Box<dyn sqlparser::dialect::Dialect> = match dialect {
+            SqlDialect::Generic => Box::new(GenericDialect {}),
+            SqlDialect::PostgreSQL => Box::new(PostgreSqlDialect {}),
+            SqlDialect::SQLite => Box::new(SQLiteDialect {}),
+        };
         Self { dialect }
     }
 
@@ -38,7 +43,7 @@ impl SqlAnalyzer {
     fn analyze_sql_string(&self, sql_string: &SqlString) {
         let filled_sql = fill_placeholders(&sql_string.sql_content);
 
-        match self.parse_sql(&filled_sql) {
+        match Parser::parse_sql(&*self.dialect, &filled_sql) {
             Ok(_) => info!("Valid sql string: `{}`", sql_string.sql_content),
             Err(e) => {
                 error!(
@@ -48,16 +53,6 @@ impl SqlAnalyzer {
                 );
             }
         }
-    }
-
-    fn parse_sql(&self, sql: &str) -> Result<Vec<Statement>, sqlparser::parser::ParserError> {
-        let dialect: Box<dyn sqlparser::dialect::Dialect> = match self.dialect {
-            SqlDialect::Generic => Box::new(GenericDialect {}),
-            SqlDialect::PostgreSQL => Box::new(PostgreSqlDialect {}),
-            SqlDialect::SQLite => Box::new(SQLiteDialect {}),
-        };
-
-        Parser::parse_sql(&*dialect, sql)
     }
 }
 

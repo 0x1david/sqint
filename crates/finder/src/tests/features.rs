@@ -27,6 +27,7 @@ mod tests {
                 "also_query_fun".to_string(),
                 "outer_func".to_string(),
             ]),
+            kw_param_names: HashSet::from_iter(["Ok".to_string()]),
         })
     }
 
