@@ -66,6 +66,7 @@ impl SqlFinder {
                 ast::Expr::Call(call) => self.process_call_expr(call, byte_offset),
                 _ => bail_with!(vec![], "Unhandled expr_stmt value pattern: {:?}", value),
             },
+            ast::Expr::Constant(_) => vec![], // Code comments
             _ => {
                 bail_with!(vec![], "Unhandled expr_stmt value pattern: {:?}", value)
             }
@@ -139,6 +140,10 @@ impl SqlFinder {
                 self.handle_tuple_assignment(&tuple.elts, value, byte_offset)
             }
             ast::Expr::List(list) => self.handle_tuple_assignment(&list.elts, value, byte_offset),
+
+            // This is only the subscript part of a HM and
+            // doesn't matter
+            ast::Expr::Subscript(_) => vec![],
             _ => {
                 bail_with!(vec![], "Unhandled assignment target pattern: {:?}", target)
             }
@@ -152,7 +157,6 @@ impl SqlFinder {
         byte_offset: usize,
     ) -> Vec<SqlResult> {
         if self.is_sql_variable_name(name) {
-            // Use the flattened extraction for assignments too
             return self.extract_content_flattened(value, name, byte_offset);
         }
         vec![]
@@ -258,7 +262,9 @@ impl SqlFinder {
     fn extract_content(&self, expr: &ast::Expr) -> Option<FinderType> {
         match expr {
             ast::Expr::Constant(c) => Some(Self::extract_expr_const(c)),
-            ast::Expr::Subscript(_) | ast::Expr::Name(_) => Some(FinderType::Placeholder),
+            ast::Expr::Subscript(_) | ast::Expr::Name(_) | ast::Expr::Attribute(_) => {
+                Some(FinderType::Placeholder)
+            }
             ast::Expr::Call(c) => self.extract_call(c),
             ast::Expr::FormattedValue(f) => self.extract_content(&f.value),
             ast::Expr::BinOp(b) => self.extract_from_bin_op(b),
@@ -344,7 +350,6 @@ impl SqlFinder {
     }
 
     fn extract_call(&self, v: &ast::ExprCall<TextRange>) -> Option<FinderType> {
-        dbg!(&v);
         match &*v.func {
             ast::Expr::Call(nested_call) => self.extract_call(nested_call),
             ast::Expr::Attribute(ast::ExprAttribute { attr, value, .. }) => {

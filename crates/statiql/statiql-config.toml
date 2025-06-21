@@ -7,6 +7,7 @@ variable_names = [
     "statement",
     "cmd",
     "command",
+    "_sql"
     "sql_query",
     "db_query",
     "select_query",
@@ -128,6 +129,13 @@ variable_names = [
     "real_sql_queries",
     "mixed_data",
     "comprehensive_sql"
+   "prod_sql",
+    "nonprod_sql",
+    "csp_sql",
+    "customer_ids",
+    "backup_name",
+    "table_name",
+    "idx",
 ]
 
 # Function names to look for (methods and functions that execute SQL)

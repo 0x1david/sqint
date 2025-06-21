@@ -1,4 +1,3 @@
-use sqlparser::ast::Statement;
 use sqlparser::dialect::{GenericDialect, PostgreSqlDialect, SQLiteDialect};
 use sqlparser::parser::{Parser, ParserError};
 
@@ -69,7 +68,7 @@ impl SqlError {
     }
 
     fn from_parser_error(e: ParserError) -> Self {
-        match dbg!(e) {
+        match e {
             ParserError::ParserError(msg) | ParserError::TokenizerError(msg) => {
                 let line_marker = " at Line: ";
                 let col_marker = ", Column: ";
@@ -111,8 +110,9 @@ impl SqlError {
 }
 
 /// Prepare SQL for parsing by replacing placeholders with dummy values
+/// TODO: Config defined list of placeholders and their replacements
 fn fill_placeholders(sql: &str) -> String {
     sql.replace("{PLACEHOLDER}", "PLACEHOLDER")
-        .replace(":1", "'PLACEHOLDER'")
-        .replace(":2", "'PLACEHOLDER'")
+        .replace("?", "'PLACEHOLDER'")
+        .replace("ISNULL", "IS NULL")
 }

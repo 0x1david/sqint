@@ -1067,4 +1067,321 @@ query_fun("SELECT id FROM users").sql_fun("UPDATE users SET active = 1")
             "chained calls with different function names",
         );
     }
+
+    #[test]
+    fn class_method_self_assignment() {
+        harness_find(
+            r#"
+class DatabaseService:
+    def get_users(self):
+        self.query = "SELECT * FROM users WHERE active = 1"
+        self.sql = "SELECT COUNT(*) FROM users"
+        "#,
+            vec![
+                ("query", "SELECT * FROM users WHERE active = 1"),
+                ("sql", "SELECT COUNT(*) FROM users"),
+            ],
+            "class method self attribute assignment",
+        );
+    }
+
+    #[test]
+    fn class_method_local_and_self_assignment() {
+        harness_find(
+            r#"
+class UserRepository:
+    def fetch_data(self):
+        query = "SELECT id, name FROM users"
+        self.sql = "SELECT email FROM users WHERE verified = 1"
+        self.query = query
+        "#,
+            vec![
+                ("query", "SELECT id, name FROM users"),
+                ("sql", "SELECT email FROM users WHERE verified = 1"),
+                ("query", "SELECT id, name FROM users"),
+            ],
+            "mixed local and self assignments in class method",
+        );
+    }
+
+    #[test]
+    fn class_method_nested_attribute_assignment() {
+        harness_find(
+            r#"
+class DatabaseManager:
+    def setup_queries(self):
+        self.queries.main_sql = "SELECT * FROM main_table"
+        self.db.connection.query = "SELECT status FROM connections"
+        "#,
+            vec![
+                ("main_sql", "SELECT * FROM main_table"),
+                ("query", "SELECT status FROM connections"),
+            ],
+            "nested attribute assignments in class method",
+        );
+    }
+
+    #[test]
+    fn multiple_class_methods_assignments() {
+        harness_find(
+            r#"
+class DataAccess:
+    def get_users(self):
+        self.query = "SELECT * FROM users"
+    
+    def get_orders(self):
+        self.sql = "SELECT * FROM orders WHERE status = 'pending'"
+    
+    def cleanup(self):
+        query = "DELETE FROM temp_table"
+        "#,
+            vec![
+                ("query", "SELECT * FROM users"),
+                ("sql", "SELECT * FROM orders WHERE status = 'pending'"),
+                ("query", "DELETE FROM temp_table"),
+            ],
+            "assignments across multiple class methods",
+        );
+    }
+
+    #[test]
+    fn class_method_conditional_assignment() {
+        harness_find(
+            r#"
+class QueryBuilder:
+    def build_query(self, include_deleted=False):
+        if include_deleted:
+            self.query = "SELECT * FROM users"
+        else:
+            self.sql = "SELECT * FROM users WHERE deleted_at IS NULL"
+        "#,
+            vec![
+                ("query", "SELECT * FROM users"),
+                ("sql", "SELECT * FROM users WHERE deleted_at IS NULL"),
+            ],
+            "conditional assignments in class method",
+        );
+    }
+
+    #[test]
+    fn class_method_loop_assignment() {
+        harness_find(
+            r#"
+class BatchProcessor:
+    def process_tables(self, tables):
+        for table in tables:
+            self.query = f"SELECT COUNT(*) FROM {table}"
+            sql = f"ANALYZE TABLE {table}"
+        "#,
+            vec![
+                ("query", "SELECT COUNT(*) FROM {PLACEHOLDER}"),
+                ("sql", "ANALYZE TABLE {PLACEHOLDER}"),
+            ],
+            "loop assignments in class method",
+        );
+    }
+
+    #[test]
+    fn class_method_exception_handling_assignment() {
+        harness_find(
+            r#"
+class SafeDatabase:
+    def execute_with_fallback(self):
+        try:
+            self.query = "SELECT * FROM complex_view WHERE conditions = 'strict'"
+        except Exception:
+            self.sql = "SELECT * FROM simple_table LIMIT 100"
+        finally:
+            query = "INSERT INTO execution_log (timestamp) VALUES (NOW())"
+        "#,
+            vec![
+                (
+                    "query",
+                    "SELECT * FROM complex_view WHERE conditions = 'strict'",
+                ),
+                ("sql", "SELECT * FROM simple_table LIMIT 100"),
+                (
+                    "query",
+                    "INSERT INTO execution_log (timestamp) VALUES (NOW())",
+                ),
+            ],
+            "exception handling assignments in class method",
+        );
+    }
+
+    #[test]
+    fn static_method_assignment() {
+        harness_find(
+            r#"
+class Utilities:
+    @staticmethod
+    def get_system_query():
+        query = "SELECT version() AS db_version"
+        sql = "SHOW TABLES"
+        return query
+        "#,
+            vec![
+                ("query", "SELECT version() AS db_version"),
+                ("sql", "SHOW TABLES"),
+            ],
+            "assignments in static method",
+        );
+    }
+
+    #[test]
+    fn property_method_assignment() {
+        harness_find(
+            r#"
+class QueryProvider:
+    @property
+    def user_query(self):
+        query = "SELECT id, name, email FROM users WHERE active = 1"
+        return query
+    
+    @user_query.setter
+    def user_query(self, value):
+        self.sql = "UPDATE query_cache SET query = ? WHERE name = 'user_query'"
+        "#,
+            vec![
+                (
+                    "query",
+                    "SELECT id, name, email FROM users WHERE active = 1",
+                ),
+                (
+                    "sql",
+                    "UPDATE query_cache SET query = ? WHERE name = 'user_query'",
+                ),
+            ],
+            "assignments in property methods",
+        );
+    }
+
+    #[test]
+    fn nested_class_method_assignment() {
+        harness_find(
+            r#"
+class OuterService:
+    class InnerRepository:
+        def get_data(self):
+            self.query = "SELECT * FROM inner_table"
+            sql = "SELECT metadata FROM inner_config"
+    
+    def process(self):
+        self.sql = "SELECT * FROM outer_table"
+        "#,
+            vec![
+                ("query", "SELECT * FROM inner_table"),
+                ("sql", "SELECT metadata FROM inner_config"),
+                ("sql", "SELECT * FROM outer_table"),
+            ],
+            "assignments in nested class methods",
+        );
+    }
+
+    #[test]
+    fn class_method_with_parameters_assignment() {
+        harness_find(
+            r#"
+class ParameterizedQueries:
+    def get_user_by_role(self, role, active=True):
+        if active:
+            self.query = f"SELECT * FROM users WHERE role = '{role}' AND active = 1"
+        else:
+            sql = f"SELECT * FROM users WHERE role = '{role}'"
+        self.also_query = "SELECT DISTINCT role FROM users"
+        "#,
+            vec![
+                (
+                    "query",
+                    "SELECT * FROM users WHERE role = '{PLACEHOLDER}' AND active = 1",
+                ),
+                ("sql", "SELECT * FROM users WHERE role = '{PLACEHOLDER}'"),
+                ("also_query", "SELECT DISTINCT role FROM users"),
+            ],
+            "assignments in parameterized class method",
+        );
+    }
+
+    #[test]
+    fn class_method_with_string_formatting() {
+        harness_find(
+            r#"
+class FormattedQueries:
+    def build_dynamic_query(self, table, columns):
+        self.query = "SELECT {} FROM {}".format(", ".join(columns), table)
+        self.sql = f"DESCRIBE {table}"
+        query = "SELECT COUNT(*) FROM {}".format(table)
+        "#,
+            vec![
+                ("query", "SELECT {PLACEHOLDER} FROM {PLACEHOLDER}"),
+                ("sql", "DESCRIBE {PLACEHOLDER}"),
+                ("query", "SELECT COUNT(*) FROM {PLACEHOLDER}"),
+            ],
+            "formatted string assignments in class method",
+        );
+    }
+
+    #[test]
+    fn class_method_attribute_chains() {
+        harness_find(
+            r#"
+class ComplexService:
+    def setup_connections(self):
+        self.primary.connection.query = "SELECT 1 FROM primary_db"
+        self.secondary.db.sql = "SELECT 1 FROM secondary_db"
+        self.cache.redis.query = "GET active_users_count"
+        "#,
+            vec![
+                ("query", "SELECT 1 FROM primary_db"),
+                ("sql", "SELECT 1 FROM secondary_db"),
+                ("query", "GET active_users_count"),
+            ],
+            "chained attribute assignments in class method",
+        );
+    }
+
+    #[test]
+    fn class_method_tuple_assignment() {
+        harness_find(
+            r#"
+class TupleAssignments:
+    def get_queries(self):
+        self.query, self.sql = ("SELECT * FROM table1", "SELECT * FROM table2")
+        (query, sql) = ("SELECT COUNT(*) FROM items", "SELECT SUM(price) FROM items")
+        "#,
+            vec![
+                ("query", "SELECT * FROM table1"),
+                ("sql", "SELECT * FROM table2"),
+                ("query", "SELECT COUNT(*) FROM items"),
+                ("sql", "SELECT SUM(price) FROM items"),
+            ],
+            "tuple assignments in class method",
+        );
+    }
+
+    #[test]
+    fn class_init_method_assignment() {
+        harness_find(
+            r#"
+class DatabaseService:
+    def __init__(self, connection_string):
+        self.query = "SELECT 1 AS health_check"
+        self.sql = "SELECT COUNT(*) FROM information_schema.tables"
+        query = "SHOW DATABASES"
+        
+    def __del__(self):
+        self.query = "UPDATE sessions SET ended_at = NOW() WHERE session_id = ?"
+        "#,
+            vec![
+                ("query", "SELECT 1 AS health_check"),
+                ("sql", "SELECT COUNT(*) FROM information_schema.tables"),
+                ("query", "SHOW DATABASES"),
+                (
+                    "query",
+                    "UPDATE sessions SET ended_at = NOW() WHERE session_id = ?",
+                ),
+            ],
+            "assignments in __init__ and __del__ methods",
+        );
+    }
 }

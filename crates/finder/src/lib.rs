@@ -79,6 +79,14 @@ impl SqlFinder {
                     .collect(),
 
                 ast::Stmt::Expr(e) => self.analyze_stmt_expr(e),
+
+                ast::Stmt::Return(_)
+                | ast::Stmt::Import(_)
+                | ast::Stmt::ImportFrom(_)
+                | ast::Stmt::Continue(_)
+                | ast::Stmt::Assert(_)
+                | ast::Stmt::Delete(_)
+                | ast::Stmt::Raise(_) => vec![],
                 _ => {
                     bail_with!(vec![], "Unimplemented stmt: {:?}", stmt)
                 }

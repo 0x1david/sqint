@@ -54,7 +54,7 @@ fn handle_check(args: &CheckArgs, config: &Config, cli: &Cli) {
         .filter_map(|p| sql_finder.analyze_file(p))
         .collect();
 
-    let analyzer = analyzer::SqlAnalyzer::new(analyzer::SqlDialect::Generic);
+    let analyzer = analyzer::SqlAnalyzer::new(analyzer::SqlDialect::PostgreSQL);
     for s in &sqls {
         debug!("{}", s);
         analyzer.analyze_sql_extract(s, config);
