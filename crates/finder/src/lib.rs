@@ -2,7 +2,6 @@ mod assign;
 mod finder_types;
 mod format;
 mod tests;
-use crate::finder_types::SearchCtx;
 pub use crate::finder_types::{FinderConfig, SqlExtract, SqlString};
 use logging::{bail_with, debug, error};
 use rustpython_parser::{
@@ -12,20 +11,17 @@ use rustpython_parser::{
 use std::{
     fs,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 pub struct SqlFinder {
-    config: FinderConfig,
-    ctx: SearchCtx,
+    config: Arc<FinderConfig>,
 }
 
 impl SqlFinder {
     #[must_use]
-    pub fn new(config: FinderConfig) -> Self {
-        Self {
-            config,
-            ctx: SearchCtx::default(),
-        }
+    pub fn new(config: Arc<FinderConfig>) -> Self {
+        Self { config }
     }
 
     #[must_use]
@@ -50,10 +46,8 @@ impl SqlFinder {
         let mut results = Vec::new();
         for stmt in suite {
             let stmt_results = match stmt {
-                ast::Stmt::Assign(a) if self.ctx.var_assign => self.analyze_assignment(a),
-                ast::Stmt::AnnAssign(a) if self.ctx.var_assign => {
-                    self.analyze_annotated_assignment(a)
-                }
+                ast::Stmt::Assign(a) => self.analyze_assignment(a),
+                ast::Stmt::AnnAssign(a) => self.analyze_annotated_assignment(a),
                 ast::Stmt::For(f) => self.analyze_body_and_orelse(&f.body, &f.orelse),
                 ast::Stmt::AsyncFor(f) => self.analyze_body_and_orelse(&f.body, &f.orelse),
                 ast::Stmt::While(f) => self.analyze_body_and_orelse(&f.body, &f.orelse),

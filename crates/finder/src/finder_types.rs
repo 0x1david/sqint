@@ -22,10 +22,6 @@ impl SqlResult {
         }
     }
 }
-#[derive(Debug, Clone)]
-pub struct SearchCtx {
-    pub var_assign: bool,
-}
 
 #[derive(Debug, Clone)]
 pub struct SqlExtract {
@@ -186,11 +182,5 @@ impl fmt::Display for SqlExtract {
             writeln!(f, "{sql_string}")?;
         }
         Ok(())
-    }
-}
-
-impl Default for SearchCtx {
-    fn default() -> Self {
-        Self { var_assign: true }
     }
 }

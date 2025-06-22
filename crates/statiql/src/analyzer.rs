@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use sqlparser::dialect::{GenericDialect, PostgreSqlDialect, SQLiteDialect};
 use sqlparser::parser::{Parser, ParserError};
 
@@ -27,7 +29,7 @@ impl SqlAnalyzer {
         Self { dialect }
     }
 
-    pub fn analyze_sql_extract(&self, extract: &SqlExtract, cfg: &Config) {
+    pub fn analyze_sql_extract(&self, extract: &SqlExtract, cfg: Arc<Config>) {
         if extract.strings.is_empty() {
             debug!("Empty extract `{}`", extract.file_path);
         }

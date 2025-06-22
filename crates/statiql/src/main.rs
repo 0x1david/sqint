@@ -4,11 +4,13 @@ mod cli;
 mod config;
 
 use clap::Parser;
-use cli::{CheckArgs, Cli, Commands, ConfigArgs};
+use cli::{Cli, Commands, ConfigArgs};
 use config::{Config, DEFAULT_CONFIG, DEFAULT_CONFIG_NAME};
 use finder::{FinderConfig, SqlExtract, SqlFinder, collect_files};
-use logging::{LogLevel, Logger, always_log, debug};
+use logging::{LogLevel, Logger, always_log};
 use std::env;
+use std::sync::Arc;
+use std::thread;
 
 fn main() {
     let cli = Cli::parse();
@@ -16,13 +18,13 @@ fn main() {
 
     setup_logging(&cli, config.debug);
 
-    match &cli.command {
-        None => handle_check(&cli.check_args, &config, &cli),
-        Some(comm) => {
+    match cli.command {
+        None => handle_check(config, cli),
+        Some(ref comm) => {
             match comm {
-                Commands::Check(args) => handle_check(args, &config, &cli),
+                Commands::Check(args) => handle_check(config, cli),
                 Commands::Init(_) => handle_init(),
-                Commands::Config(args) => handle_config(args, &config),
+                Commands::Config(args) => handle_config(args, config),
             };
         }
     }
@@ -30,8 +32,9 @@ fn main() {
     std::process::exit(Logger::exit_code())
 }
 
-fn handle_check(args: &CheckArgs, config: &Config, cli: &Cli) {
-    let cfg = FinderConfig {
+fn handle_check(config: Config, cli: Cli) {
+    let config = Arc::new(config);
+    let cfg = Arc::new(FinderConfig {
         variables: config
             .variable_names
             .iter()
@@ -44,21 +47,35 @@ fn handle_check(args: &CheckArgs, config: &Config, cli: &Cli) {
             .iter()
             .map(|f| f.to_lowercase())
             .collect(),
-    };
-    let sql_finder = SqlFinder::new(cfg);
+    });
 
-    let sqls: Vec<SqlExtract> = collect_files(&args.paths)
+    let python_files: Vec<String> = collect_files(&cli.check_args.paths)
         .iter()
         .filter(|f| finder::is_python_file(f))
         .filter_map(|f| f.to_str())
-        .filter_map(|p| sql_finder.analyze_file(p))
+        .map(|s| s.to_string())
         .collect();
 
-    let analyzer = analyzer::SqlAnalyzer::new(analyzer::SqlDialect::PostgreSQL);
-    for s in &sqls {
-        debug!("{}", s);
-        analyzer.analyze_sql_extract(s, config);
-    }
+    python_files
+        .into_iter()
+        .map(|file_path| {
+            let cfg = cfg.clone();
+            let app_cfg = config.clone();
+            thread::spawn(move || {
+                let sql_finder = SqlFinder::new(cfg);
+
+                if let Some(sql_extract) = sql_finder.analyze_file(&file_path) {
+                    let analyzer = analyzer::SqlAnalyzer::new(analyzer::SqlDialect::PostgreSQL);
+                    println!("{}", sql_extract);
+                    analyzer.analyze_sql_extract(&sql_extract, app_cfg);
+                }
+            })
+        })
+        .collect::<Vec<thread::JoinHandle<()>>>()
+        .into_iter()
+        .for_each(|handle| {
+            let _ = handle.join();
+        });
 }
 
 fn setup_logging(cli: &Cli, debug: bool) {
@@ -97,7 +114,7 @@ fn handle_init() {
     always_log!("Created default config at {}", path.display());
 }
 
-fn handle_config(args: &ConfigArgs, config: &Config) {
+fn handle_config(args: &ConfigArgs, config: Config) {
     if args.validate {
         println!("Validating configuration...");
     }
