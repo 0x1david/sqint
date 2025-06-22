@@ -1,5 +1,9 @@
-# Variable names to look for and analyze
-variable_names = [
+# =============================================================================
+# DETECTION SETTINGS
+# =============================================================================
+
+# Variable names to look for and analyze (empty list means analyze all variables)
+variable_contexts = [
     "_query",
     "_sql",
     "query",
@@ -15,20 +19,14 @@ variable_names = [
     "delete_query",
 ]
 
-# Directories to look through for files matching `file_patterns`
-targets = ["."]
+# Function names to analyze SQL within (empty list means analyze all functions)
+function_contexts = []
 
-# File patterns to look for in the specified `targets`
-file_patterns = [
-    "*.py",
-    "*.pyi",
-    "*.ipynb",
-]
-# File name patterns to exclude from analysis
-exclude_patterns = []
+# Class method names to analyze SQL within (empty list means analyze all methods)
+class_contexts = []
 
-# Contexts to exclude from analysis TODO: Specify a manual reference link
-ignore_contexts = []
+# How to match context names: "exact", "contains", or "regex"
+context_match_mode = "exact"
 
 # Minimum string length of an sql string to analyse
 min_sql_length = 10
@@ -36,11 +34,82 @@ min_sql_length = 10
 # Whether contexts (function names, variable names...) are case-sensitive
 case_sensitive = false
 
+# =============================================================================
+# FILE PROCESSING
+# =============================================================================
+
+# File patterns to look for in the specified `targets`
+file_patterns = [
+    "*.py",
+    "*.pyi",
+    "*.ipynb",
+]
+
+# File name patterns to exclude from analysis
+exclude_patterns = []
+
+# Whether file matching will respect git ignore
+respect_gitignore = true
+
+# =============================================================================
+# PERFORMANCE SETTINGS
+# =============================================================================
+
+# Enable parallel processing for better performance
+parallel_processing = true
+
+# Maximum number of worker threads (0 = auto-detect based on CPU cores)
+max_threads = 0
+
+# Number of files to process per thread batch
+thread_chunk_size = 5
+
+# =============================================================================
+# CACHING SETTINGS
+# =============================================================================
+
+# Enable caching of parsed SQL results
+enable_cache = true
+
+# Cache directory location
+cache_location = ".sql_linter_cache"
+
+# Cache time-to-live in hours
+cache_ttl_hours = 24
+
+# =============================================================================
+# INCREMENTAL MODE
+# =============================================================================
+
+# Only analyze files changed since last run (requires git)
+incremental_mode = false
+
+# Git branch to compare against for incremental mode
+baseline_branch = "main"
+
+# Include staged but uncommitted changes in incremental mode
+include_staged = true
+
+# =============================================================================
+# OUTPUT SETTINGS
+# =============================================================================
+
 # Verbose output will include all levels of information except for debug information
 verbose = false
 
 # Quiet output will ignore 
 quiet = false
 
-# Whether file matching will respect git ignore
-respect_gitignore = true
+# =============================================================================
+# SQL PARSING SETTINGS
+# =============================================================================
+
+# Placeholders that will be replaced with values for SQL parsing
+param_markers = [
+    "?",
+]
+
+# String mappings to fix common SQL dialect differences
+[dialect_mappings]
+"NOTNULL" = "NOT NULL"
+"ISNULL" = "IS NULL"

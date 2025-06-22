@@ -6,7 +6,7 @@ mod config;
 use clap::Parser;
 use cli::{Cli, Commands, ConfigArgs};
 use config::{Config, DEFAULT_CONFIG, DEFAULT_CONFIG_NAME};
-use finder::{FinderConfig, SqlExtract, SqlFinder, collect_files};
+use finder::{FinderConfig, SqlFinder, collect_files};
 use logging::{LogLevel, Logger, always_log};
 use std::env;
 use std::sync::Arc;
@@ -35,18 +35,22 @@ fn main() {
 fn handle_check(config: Config, cli: Cli) {
     let config = Arc::new(config);
     let cfg = Arc::new(FinderConfig {
-        variables: config
-            .variable_names
+        variable_ctx: config
+            .variable_contexts
+            .iter()
+            .map(|f| f.to_lowercase())
+            .collect(),
+        func_ctx: config
+            .function_contexts
+            .iter()
+            .map(|f| f.to_lowercase())
+            .collect(),
+        class_ctx: config
+            .class_contexts
             .iter()
             .map(|f| f.to_lowercase())
             .collect(),
         min_sql_length: config.min_sql_length,
-        func_names: config.func_names.iter().map(|f| f.to_lowercase()).collect(),
-        kw_param_names: config
-            .kw_param_names
-            .iter()
-            .map(|f| f.to_lowercase())
-            .collect(),
     });
 
     let python_files: Vec<String> = collect_files(&cli.check_args.paths)
@@ -93,15 +97,17 @@ fn setup_logging(cli: &Cli, debug: bool) {
 }
 
 fn load_config(cli: &Cli) -> Config {
-    cli.config.as_ref().map_or_else(
-        || {
-            let mut cwd = env::current_dir().expect("Not able to read current working directory.");
-            cwd.push(DEFAULT_CONFIG_NAME);
-            let cfg = Config::from_file(cwd);
-            cfg.unwrap_or_default()
-        },
-        |config_path| Config::from_file(config_path).unwrap_or_default(),
-    )
+    let config_path = env::current_dir()
+        .expect("Unable to read current working directory")
+        .join(DEFAULT_CONFIG_NAME);
+
+    let mut config = Config::default();
+
+    if let Ok(file_config) = Config::from_file(&config_path) {
+        config.merge_with(file_config);
+    }
+
+    config
 }
 
 fn handle_init() {
@@ -120,7 +126,7 @@ fn handle_config(args: &ConfigArgs, config: Config) {
     }
     if args.list_variables {
         println!("Variables that will be analyzed:");
-        for var in &config.variable_names {
+        for var in &config.variable_contexts {
             println!("  - {var}");
         }
     }

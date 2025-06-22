@@ -126,12 +126,12 @@ impl SqlFinder {
     /// Check if variable name suggests it contains SQL
     fn is_sql_variable_name(&self, name: &str) -> bool {
         let name_lower = name.to_lowercase();
-        self.config.variables.contains(&name_lower)
+        self.config.variable_ctx.contains(&name_lower)
     }
 
     fn is_sql_function_name(&self, name: &str) -> bool {
         let name_lower = name.to_lowercase();
-        self.config.func_names.contains(&name_lower)
+        self.config.func_ctx.contains(&name_lower)
     }
 
     fn is_sql_parameter_name(&self, name: &str) -> bool {

@@ -39,10 +39,10 @@ pub struct SqlString {
 
 #[derive(Debug, Clone)]
 pub struct FinderConfig {
-    pub variables: HashSet<String>,
+    pub variable_ctx: HashSet<String>,
     pub min_sql_length: usize,
-    pub func_names: HashSet<String>,
-    pub kw_param_names: HashSet<String>,
+    pub func_ctx: HashSet<String>,
+    pub class_ctx: HashSet<String>,
 }
 
 #[derive(Debug, Clone)]

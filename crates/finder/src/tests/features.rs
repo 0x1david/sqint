@@ -10,25 +10,28 @@ mod tests {
     };
 
     fn harness_create_test_finder() -> SqlFinder {
-        SqlFinder::new(FinderConfig {
-            variables: HashSet::from_iter([
-                "query".to_string(),
-                "sql".to_string(),
-                "also_query".to_string(),
-                "queries".to_string(),
-            ]),
-            min_sql_length: 1,
-            func_names: HashSet::from_iter([
-                "execute".to_string(),
-                "execute_query".to_string(),
-                "query_fun".to_string(),
-                "db.query_fun".to_string(), // Later do class method names dynamically
-                "sql_fun".to_string(),
-                "also_query_fun".to_string(),
-                "outer_func".to_string(),
-            ]),
-            kw_param_names: HashSet::from_iter(["Ok".to_string()]),
-        })
+        SqlFinder::new(
+            FinderConfig {
+                variable_ctx: HashSet::from_iter([
+                    "query".to_string(),
+                    "sql".to_string(),
+                    "also_query".to_string(),
+                    "queries".to_string(),
+                ]),
+                min_sql_length: 1,
+                func_ctx: HashSet::from_iter([
+                    "execute".to_string(),
+                    "execute_query".to_string(),
+                    "query_fun".to_string(),
+                    "db.query_fun".to_string(), // Later do class method names dynamically
+                    "sql_fun".to_string(),
+                    "also_query_fun".to_string(),
+                    "outer_func".to_string(),
+                ]),
+                class_ctx: HashSet::from_iter(["Ok".to_string()]),
+            }
+            .into(),
+        )
     }
 
     fn harness_find(code: &str, expected: Vec<(&str, &str)>, name: &str) {
