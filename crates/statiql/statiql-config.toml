@@ -197,3 +197,13 @@ quiet = false
 respect_gitignore = true
 
 debug = true
+
+
+# Enable parallel processing for better performance
+parallel_processing = true
+
+# Maximum number of worker threads (0 = auto-detect based on CPU cores)
+max_threads = 0
+
+# Number of files to process per thread batch
+thread_chunk_size = 1

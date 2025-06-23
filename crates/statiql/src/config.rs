@@ -27,11 +27,6 @@ pub struct Config {
     pub parallel_processing: bool,
     pub max_threads: usize,
 
-    // Caching Settings
-    pub enable_cache: bool,
-    pub cache_location: String,
-    pub cache_ttl_hours: u32,
-
     // Incremental Mode
     pub incremental_mode: bool,
     pub baseline_branch: String,
@@ -84,11 +79,6 @@ impl Default for Config {
             // Performance Settings
             parallel_processing: true,
             max_threads: 0,
-
-            // Caching Settings
-            enable_cache: true,
-            cache_location: ".sql_linter_cache".to_string(),
-            cache_ttl_hours: 24,
 
             // Incremental Mode
             incremental_mode: false,
@@ -172,15 +162,6 @@ impl Config {
         }
         if other.max_threads != 0 {
             self.max_threads = other.max_threads;
-        }
-        if !other.enable_cache {
-            self.enable_cache = other.enable_cache;
-        }
-        if other.cache_location != ".sql_linter_cache" {
-            self.cache_location = other.cache_location;
-        }
-        if other.cache_ttl_hours != 24 {
-            self.cache_ttl_hours = other.cache_ttl_hours;
         }
         if other.incremental_mode {
             self.incremental_mode = other.incremental_mode;
