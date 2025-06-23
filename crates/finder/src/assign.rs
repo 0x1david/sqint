@@ -76,13 +76,13 @@ impl SqlFinder {
     fn process_call_expr(&self, call: &ast::ExprCall, byte_offset: usize) -> Vec<SqlResult> {
         let function_name = Self::extract_function_name(&call.func);
 
-        if !self.is_sql_function_name(&function_name) {
+        if !self.config.is_sql_function_name(&function_name) {
             return vec![];
         }
 
         let keyword_results = call.keywords.iter().flat_map(|keyword| {
             keyword.arg.as_ref().map_or(vec![], |arg_name| {
-                if self.is_sql_parameter_name(arg_name) {
+                if self.config.is_sql_class_name(arg_name) {
                     self.extract_content_flattened(&keyword.value, &function_name, byte_offset)
                 } else {
                     vec![]
@@ -156,7 +156,7 @@ impl SqlFinder {
         value: &ast::Expr,
         byte_offset: usize,
     ) -> Vec<SqlResult> {
-        if self.is_sql_variable_name(name) {
+        if self.config.is_sql_variable_name(name) {
             return self.extract_content_flattened(value, name, byte_offset);
         }
         vec![]
@@ -227,8 +227,8 @@ impl SqlFinder {
 
     fn target_contains_sql_variable(&self, target: &ast::Expr) -> bool {
         match target {
-            ast::Expr::Name(name) => self.is_sql_variable_name(&name.id),
-            ast::Expr::Attribute(att) => self.is_sql_variable_name(&att.attr),
+            ast::Expr::Name(name) => self.config.is_sql_variable_name(&name.id),
+            ast::Expr::Attribute(att) => self.config.is_sql_variable_name(&att.attr),
             ast::Expr::Tuple(tuple) => tuple
                 .elts
                 .iter()
@@ -360,7 +360,7 @@ impl SqlFinder {
                 }
             }
             ast::Expr::Name(name) => {
-                if self.is_sql_function_name(&name.id) {
+                if self.config.is_sql_function_name(&name.id) {
                     v.args.iter().find_map(|arg| self.extract_content(arg))
                 } else {
                     None

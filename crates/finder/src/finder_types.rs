@@ -45,6 +45,20 @@ pub struct FinderConfig {
     pub class_ctx: HashSet<String>,
 }
 
+impl FinderConfig {
+    pub(crate) fn is_sql_variable_name(&self, name: &str) -> bool {
+        self.variable_ctx.contains(&name.to_lowercase())
+    }
+
+    pub(crate) fn is_sql_function_name(&self, name: &str) -> bool {
+        self.func_ctx.contains(&name.to_lowercase())
+    }
+
+    pub(crate) fn is_sql_class_name(&self, name: &str) -> bool {
+        self.class_ctx.contains(&name.to_lowercase())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum FinderType {
     Str(String),

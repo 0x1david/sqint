@@ -23,10 +23,9 @@ pub struct Config {
     pub exclude_patterns: Vec<String>,
     pub respect_gitignore: bool,
 
-    // Performance Settings
+    // Threading Settings
     pub parallel_processing: bool,
     pub max_threads: usize,
-    pub thread_chunk_size: usize,
 
     // Caching Settings
     pub enable_cache: bool,
@@ -85,7 +84,6 @@ impl Default for Config {
             // Performance Settings
             parallel_processing: true,
             max_threads: 0,
-            thread_chunk_size: 5,
 
             // Caching Settings
             enable_cache: true,
@@ -141,7 +139,7 @@ impl Config {
     }
 
     /// Merge this config with another, preferring values from the other config
-    pub fn merge_with(&mut self, other: Config) {
+    pub fn merge_with(&mut self, other: Self) {
         if !other.variable_contexts.is_empty() {
             self.variable_contexts = other.variable_contexts;
         }
@@ -174,9 +172,6 @@ impl Config {
         }
         if other.max_threads != 0 {
             self.max_threads = other.max_threads;
-        }
-        if other.thread_chunk_size != 5 {
-            self.thread_chunk_size = other.thread_chunk_size;
         }
         if !other.enable_cache {
             self.enable_cache = other.enable_cache;

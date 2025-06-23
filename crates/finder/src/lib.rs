@@ -20,7 +20,7 @@ pub struct SqlFinder {
 
 impl SqlFinder {
     #[must_use]
-    pub fn new(config: Arc<FinderConfig>) -> Self {
+    pub const fn new(config: Arc<FinderConfig>) -> Self {
         Self { config }
     }
 
@@ -121,22 +121,6 @@ impl SqlFinder {
             .chain(self.analyze_stmts(orelse))
             .chain(self.analyze_stmts(finalbody))
             .collect()
-    }
-
-    /// Check if variable name suggests it contains SQL
-    fn is_sql_variable_name(&self, name: &str) -> bool {
-        let name_lower = name.to_lowercase();
-        self.config.variable_ctx.contains(&name_lower)
-    }
-
-    fn is_sql_function_name(&self, name: &str) -> bool {
-        let name_lower = name.to_lowercase();
-        self.config.func_ctx.contains(&name_lower)
-    }
-
-    fn is_sql_parameter_name(&self, name: &str) -> bool {
-        let sql_params = ["sql", "query", "statement", "command"]; // TODO: Configurable
-        sql_params.contains(&name)
     }
 }
 
