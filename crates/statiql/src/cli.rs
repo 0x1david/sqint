@@ -20,6 +20,9 @@ pub struct Cli {
     #[arg(short, long, global = true, conflicts_with = "verbose")]
     pub quiet: bool,
 
+    #[arg(short, long, global = true)]
+    pub debug: bool,
+
     #[arg(long, global = true, value_enum, default_value = "colored")]
     pub format: OutputFormat,
 

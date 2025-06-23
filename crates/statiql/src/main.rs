@@ -14,7 +14,7 @@ use std::thread;
 fn main() {
     let cli = Cli::parse();
     let config = load_config(&cli);
-    setup_logging(&cli, config.debug);
+    setup_logging(&cli);
     match cli.command {
         None => handle_check(&config.into(), &cli),
         Some(ref comm) => {
@@ -29,24 +29,12 @@ fn main() {
 }
 
 fn handle_check(config: &Arc<Config>, cli: &Cli) {
-    let cfg = Arc::new(FinderConfig {
-        variable_ctx: config
-            .variable_contexts
-            .iter()
-            .map(|f| f.to_lowercase())
-            .collect(),
-        func_ctx: config
-            .function_contexts
-            .iter()
-            .map(|f| f.to_lowercase())
-            .collect(),
-        class_ctx: config
-            .class_contexts
-            .iter()
-            .map(|f| f.to_lowercase())
-            .collect(),
-        min_sql_length: config.min_sql_length,
-    });
+    let cfg = Arc::new(FinderConfig::new(
+        &config.variable_contexts,
+        &config.function_contexts,
+        &config.class_contexts,
+        &config.context_match_mode,
+    ));
 
     let python_files: Vec<String> = collect_files(&cli.check_args.paths)
         .iter()
@@ -100,13 +88,13 @@ fn process_file(file_path: &str, cfg: Arc<FinderConfig>, app_cfg: &Arc<Config>) 
     let sql_finder = SqlFinder::new(cfg);
     if let Some(sql_extract) = sql_finder.analyze_file(file_path) {
         let analyzer = analyzer::SqlAnalyzer::new(&analyzer::SqlDialect::PostgreSQL);
-        println!("{sql_extract}");
+        dbg!("{}", &sql_extract);
         analyzer.analyze_sql_extract(&sql_extract, app_cfg);
     }
 }
 
-fn setup_logging(cli: &Cli, debug: bool) {
-    let lvl = if debug {
+fn setup_logging(cli: &Cli) {
+    let lvl = if cli.debug {
         LogLevel::Debug
     } else {
         match (cli.verbose, cli.quiet) {
@@ -124,9 +112,13 @@ fn load_config(cli: &Cli) -> Config {
         .expect("Unable to read current working directory")
         .join(DEFAULT_CONFIG_NAME);
     let mut config = Config::default();
-    if let Ok(file_config) = Config::from_file(&config_path) {
-        config.merge_with(file_config);
-    }
+    Config::from_file(&config_path).map_or_else(
+        |e| {
+            println!("Failed reading config file, using default config.");
+            println!("{e}")
+        },
+        |file_config| config.merge_with(file_config),
+    );
     config
 }
 

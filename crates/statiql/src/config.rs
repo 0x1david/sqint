@@ -149,7 +149,7 @@ impl Config {
         if !other.class_contexts.is_empty() {
             self.class_contexts = other.class_contexts;
         }
-        if other.context_match_mode != "exact" {
+        if !other.context_match_mode.is_empty() {
             self.context_match_mode = other.context_match_mode;
         }
         if other.min_sql_length != 10 {

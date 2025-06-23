@@ -1,5 +1,5 @@
 # Variable names to look for and analyze
-variable_names = [
+variable_contexts= [
     "_query",
     "_sql", 
     "query",
@@ -7,7 +7,7 @@ variable_names = [
     "statement",
     "cmd",
     "command",
-    "_sql"
+    "_sql",
     "sql_query",
     "db_query",
     "select_query",
@@ -36,7 +36,7 @@ variable_names = [
     "create_trigger_sql",
     "create_view_statement",
     "dynamic_sql",
-    "dangerous_query",
+    ".*dangerous_query.*",
     "formatted_sql",
     "templated_sql",
     "safe_sql",
@@ -128,24 +128,35 @@ variable_names = [
     "regex_sql",
     "real_sql_queries",
     "mixed_data",
-    "comprehensive_sql"
+    "comprehensive_sql",
    "prod_sql",
     "nonprod_sql",
     "csp_sql",
     "customer_ids",
     "backup_name",
-    "table_name",
     "idx",
+    "dangerous_query"
 ]
 
-# Function names to look for (methods and functions that execute SQL)
-func_names = [
+# Function names with arguments to validate for (methods and functions that execute SQL)
+function_contexts = [
     "fetchall",
     "execute", 
     "fetchone",
     "select",
     "fetch_records"
 ]
+
+# Class names to parse through
+class_contexts = [
+    "fetchall",
+    "execute", 
+    "fetchone",
+    "select",
+    "fetch_records"
+]
+
+context_match_mode = "regex"
 
 # Keyword parameter names to look for in function calls
 kw_param_names = [

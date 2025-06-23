@@ -4,6 +4,7 @@ use crate::format::format_python_string;
 use crate::{SqlFinder, SqlString};
 use logging::{bail, bail_with};
 use regex::Regex;
+use rustpython_parser::ast::Operator;
 use rustpython_parser::{
     ast::{self, Identifier},
     text_size::TextRange,
@@ -116,6 +117,22 @@ impl SqlFinder {
                 .iter()
                 .flat_map(|elem| self.extract_content_flattened(elem, variable_name, byte_offset))
                 .collect(),
+
+            ast::Expr::BinOp(bin @ ast::ExprBinOp { op, .. })
+                if *op == Operator::Add
+                    || *op == Operator::Sub
+                    || *op == Operator::Mult
+                    || *op == Operator::Div =>
+            {
+                self.extract_from_bin_op(bin)
+                    .map_or_else(Vec::new, |content| {
+                        vec![SqlResult {
+                            byte_offset,
+                            variable_name: variable_name.to_string(),
+                            content,
+                        }]
+                    })
+            }
 
             _ => self.extract_content(expr).map_or_else(Vec::new, |content| {
                 vec![SqlResult {
@@ -458,6 +475,8 @@ impl SqlFinder {
             ast::Constant::Int(i) => FinderType::Int(i.to_string()),
             ast::Constant::Bool(b) => FinderType::Bool(*b),
             ast::Constant::Float(f) => FinderType::Float(*f),
+            // TODO: None should actually be handled
+            ast::Constant::None => FinderType::Unhandled,
             ast::Constant::Tuple(t) => {
                 FinderType::Tuple(t.iter().map(Self::extract_const).collect())
             }

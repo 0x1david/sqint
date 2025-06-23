@@ -2,6 +2,9 @@ use std::collections::HashSet;
 use std::fmt;
 use std::ops::{Add, Div, Mul, Sub};
 
+use logging::bail_with;
+use regex::Regex;
+
 // Internal result type for processing
 #[derive(Debug, Clone)]
 pub struct SqlResult {
@@ -38,24 +41,113 @@ pub struct SqlString {
 }
 
 #[derive(Debug, Clone)]
+pub enum CtxContainer {
+    Exact(HashSet<String>),
+    Contains(Vec<String>),
+    Regex(Vec<Regex>),
+}
+
+impl CtxContainer {
+    pub fn matches(&self, input: &str) -> bool {
+        match self {
+            Self::Exact(set) => set.contains(input),
+            Self::Contains(patterns) => patterns.iter().any(|pattern| input.contains(pattern)),
+            Self::Regex(regexes) => regexes.iter().any(|regex| regex.is_match(input)),
+        }
+    }
+    pub fn exact<T>(patterns: T) -> Self
+    where
+        T: IntoIterator,
+        T::Item: AsRef<str>,
+    {
+        let set = patterns
+            .into_iter()
+            .map(|s| s.as_ref().to_string())
+            .collect();
+        Self::Exact(set)
+    }
+
+    pub fn contains<T>(patterns: T) -> Self
+    where
+        T: IntoIterator,
+        T::Item: AsRef<str>,
+    {
+        let vec = patterns
+            .into_iter()
+            .map(|s| s.as_ref().to_string())
+            .collect();
+        Self::Contains(vec)
+    }
+
+    pub fn regex<T>(patterns: T) -> Result<Self, regex::Error>
+    where
+        T: IntoIterator,
+        T::Item: AsRef<str>,
+    {
+        let regexes: Result<Vec<_>, _> = patterns
+            .into_iter()
+            .map(|s| Regex::new(s.as_ref()))
+            .collect();
+        Ok(Self::Regex(regexes?))
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct FinderConfig {
-    pub variable_ctx: HashSet<String>,
-    pub min_sql_length: usize,
-    pub func_ctx: HashSet<String>,
-    pub class_ctx: HashSet<String>,
+    variable_ctx: CtxContainer,
+    class_ctx: CtxContainer,
+    func_ctx: CtxContainer,
 }
 
 impl FinderConfig {
+    pub fn new(
+        variable_ctx: &[String],
+        func_ctx: &[String],
+        class_ctx: &[String],
+        ctx_matcher_type: &str,
+    ) -> Self {
+        let (variable_ctx, func_ctx, class_ctx) = match ctx_matcher_type.to_lowercase().as_str() {
+            "regex" => (
+                CtxContainer::regex(variable_ctx).unwrap_or_else(|e| {
+                    bail_with!((), "Failed parsing regex due to an error: {}", e);
+                    CtxContainer::exact(variable_ctx)
+                }),
+                CtxContainer::regex(func_ctx).unwrap_or_else(|_| CtxContainer::exact(func_ctx)),
+                CtxContainer::regex(class_ctx).unwrap_or_else(|_| CtxContainer::exact(class_ctx)),
+            ),
+            "contains" => (
+                CtxContainer::contains(variable_ctx),
+                CtxContainer::contains(func_ctx),
+                CtxContainer::contains(class_ctx),
+            ),
+            "exact" => (
+                CtxContainer::exact(variable_ctx),
+                CtxContainer::exact(func_ctx),
+                CtxContainer::exact(class_ctx),
+            ),
+            _ => (
+                CtxContainer::exact(variable_ctx),
+                CtxContainer::exact(func_ctx),
+                CtxContainer::exact(class_ctx),
+            ),
+        };
+
+        Self {
+            variable_ctx,
+            func_ctx,
+            class_ctx,
+        }
+    }
     pub(crate) fn is_sql_variable_name(&self, name: &str) -> bool {
-        self.variable_ctx.contains(&name.to_lowercase())
+        self.variable_ctx.matches(&name.to_lowercase())
     }
 
     pub(crate) fn is_sql_function_name(&self, name: &str) -> bool {
-        self.func_ctx.contains(&name.to_lowercase())
+        self.func_ctx.matches(&name.to_lowercase())
     }
 
     pub(crate) fn is_sql_class_name(&self, name: &str) -> bool {
-        self.class_ctx.contains(&name.to_lowercase())
+        self.class_ctx.matches(&name.to_lowercase())
     }
 }
 

@@ -1,7 +1,6 @@
 #[cfg(test)]
 // Ignored test are currently not planned for implem
 mod tests {
-    use std::collections::HashSet;
 
     use crate::*;
     use rustpython_parser::{
@@ -10,28 +9,23 @@ mod tests {
     };
 
     fn harness_create_test_finder() -> SqlFinder {
-        SqlFinder::new(
-            FinderConfig {
-                variable_ctx: HashSet::from_iter([
-                    "query".to_string(),
-                    "sql".to_string(),
-                    "also_query".to_string(),
-                    "queries".to_string(),
-                ]),
-                min_sql_length: 1,
-                func_ctx: HashSet::from_iter([
-                    "execute".to_string(),
-                    "execute_query".to_string(),
-                    "query_fun".to_string(),
-                    "db.query_fun".to_string(), // Later do class method names dynamically
-                    "sql_fun".to_string(),
-                    "also_query_fun".to_string(),
-                    "outer_func".to_string(),
-                ]),
-                class_ctx: HashSet::from_iter(["Ok".to_string()]),
-            }
-            .into(),
-        )
+        let variable_ctx = vec![
+            "query".to_string(),
+            "sql".to_string(),
+            "also_query".to_string(),
+            "queries".to_string(),
+        ];
+        let func_ctx = vec![
+            "execute".to_string(),
+            "execute_query".to_string(),
+            "query_fun".to_string(),
+            "db.query_fun".to_string(), // Later do class method names dynamically
+            "sql_fun".to_string(),
+            "also_query_fun".to_string(),
+            "outer_func".to_string(),
+        ];
+        let class_ctx = vec!["Ok".to_string()];
+        SqlFinder::new(FinderConfig::new(&variable_ctx, &func_ctx, &class_ctx, "exact").into())
     }
 
     fn harness_find(code: &str, expected: Vec<(&str, &str)>, name: &str) {

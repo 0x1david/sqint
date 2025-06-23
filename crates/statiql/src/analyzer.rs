@@ -48,7 +48,8 @@ impl SqlAnalyzer {
             Ok(_) => info!("Valid sql string: `{}`", sql_string.sql_content),
             Err(e) => {
                 error!(
-                    "Invalid sql string: `{}` => {}",
+                    "Invalid sql literal `{}`: `{}` => {}",
+                    sql_string.variable_name,
                     sql_string.sql_content,
                     SqlError::from_parser_error(e).reason
                 );

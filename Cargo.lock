@@ -192,6 +192,7 @@ dependencies = [
  "logging",
  "regex",
  "rustpython-parser",
+ "serde",
 ]
 
 [[package]]

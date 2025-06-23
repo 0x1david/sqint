@@ -94,6 +94,7 @@ raw_sql = r"SELECT * FROM users WHERE name LIKE '%\_%'"
 # Concatenated SQL (potential injection risk)
 table_name = "users"
 dangerous_query = "SELECT * FROM " + table_name  # Should ideally be flagged
+TESTdangerous_queryQSS = "SELECT * FROM iks[] " + table_name  # Should ideally be flagged
 
 # if __name__ == "__main__":
 #     # More SQL in main execution
