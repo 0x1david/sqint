@@ -38,9 +38,6 @@ pub enum Commands {
 
     /// Initialize a new configuration file
     Init(InitArgs),
-
-    /// Show configuration information
-    Config(ConfigArgs),
 }
 
 #[derive(Args)]

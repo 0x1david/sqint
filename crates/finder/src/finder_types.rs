@@ -95,11 +95,12 @@ impl CtxContainer {
 #[derive(Debug, Clone)]
 pub struct FinderConfig {
     variable_ctx: CtxContainer,
-    class_ctx: CtxContainer,
     func_ctx: CtxContainer,
+    class_ctx: CtxContainer,
 }
 
 impl FinderConfig {
+    #[must_use]
     pub fn new(
         variable_ctx: &[String],
         func_ctx: &[String],
@@ -119,11 +120,6 @@ impl FinderConfig {
                 CtxContainer::contains(variable_ctx),
                 CtxContainer::contains(func_ctx),
                 CtxContainer::contains(class_ctx),
-            ),
-            "exact" => (
-                CtxContainer::exact(variable_ctx),
-                CtxContainer::exact(func_ctx),
-                CtxContainer::exact(class_ctx),
             ),
             _ => (
                 CtxContainer::exact(variable_ctx),
