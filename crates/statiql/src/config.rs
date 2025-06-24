@@ -22,6 +22,9 @@ pub struct Config {
     pub file_patterns: Vec<String>,
     pub exclude_patterns: Vec<String>,
     pub respect_gitignore: bool,
+    pub respect_global_gitignore: bool,
+    pub respect_git_exclude: bool,
+    pub include_hidden_files: bool,
 
     // Threading Settings
     pub parallel_processing: bool,
@@ -75,6 +78,9 @@ impl Default for Config {
             ],
             exclude_patterns: vec![],
             respect_gitignore: true,
+            respect_global_gitignore: false,
+            respect_git_exclude: true,
+            include_hidden_files: false,
 
             // Performance Settings
             parallel_processing: true,
@@ -130,6 +136,7 @@ impl Config {
 
     /// Merge this config with another, preferring values from the other config
     pub fn merge_with(&mut self, other: Self) {
+        // Detection Settings
         if !other.variable_contexts.is_empty() {
             self.variable_contexts = other.variable_contexts;
         }
@@ -139,7 +146,7 @@ impl Config {
         if !other.class_contexts.is_empty() {
             self.class_contexts = other.class_contexts;
         }
-        if !other.context_match_mode.is_empty() {
+        if other.context_match_mode != "exact" {
             self.context_match_mode = other.context_match_mode;
         }
         if other.min_sql_length != 10 {
@@ -148,36 +155,58 @@ impl Config {
         if other.case_sensitive {
             self.case_sensitive = other.case_sensitive;
         }
+
+        // File Processing
         if !other.file_patterns.is_empty() {
             self.file_patterns = other.file_patterns;
         }
         if !other.exclude_patterns.is_empty() {
             self.exclude_patterns = other.exclude_patterns;
         }
-        if !other.respect_gitignore {
+        if other.respect_gitignore {
             self.respect_gitignore = other.respect_gitignore;
         }
-        if !other.parallel_processing {
+        if other.respect_global_gitignore {
+            self.respect_global_gitignore = other.respect_global_gitignore;
+        }
+        if other.respect_git_exclude {
+            self.respect_git_exclude = other.respect_git_exclude;
+        }
+        if other.include_hidden_files {
+            self.include_hidden_files = other.include_hidden_files;
+        }
+
+        // Threading Settings
+        if other.parallel_processing {
             self.parallel_processing = other.parallel_processing;
         }
         if other.max_threads != 0 {
             self.max_threads = other.max_threads;
         }
+
+        // Incremental Mode
         if other.incremental_mode {
             self.incremental_mode = other.incremental_mode;
         }
         if other.baseline_branch != "main" {
             self.baseline_branch = other.baseline_branch;
         }
-        if !other.include_staged {
+        if other.include_staged {
             self.include_staged = other.include_staged;
         }
+
+        // Output Settings
         if other.verbose {
             self.verbose = other.verbose;
         }
         if other.quiet {
             self.quiet = other.quiet;
         }
+        if other.debug {
+            self.debug = other.debug;
+        }
+
+        // SQL Parsing Settings
         if !other.param_markers.is_empty() {
             self.param_markers = other.param_markers;
         }

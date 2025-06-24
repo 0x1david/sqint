@@ -1,5 +1,6 @@
 """
 Test file for SQL linter - contains various patterns of SQL strings
+mini
 """
 
 # import sqlite3

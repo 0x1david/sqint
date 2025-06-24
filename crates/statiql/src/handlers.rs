@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::thread;
 
-use finder::collect_files;
 use logging::{always_log, info};
 
 pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
@@ -12,18 +11,24 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
         &config.context_match_mode,
     ));
 
-    let all_python_files: Vec<String> = collect_files(&cli.check_args.paths)
-        .iter()
-        .filter(|f| finder::is_python_file(f))
-        .filter_map(|f| match std::fs::canonicalize(f) {
-            Ok(canonical_path) => Some(canonical_path),
-            Err(e) => {
-                always_log!("Failed to canonicalize path '{}': {}", f.display(), e);
-                None
-            }
-        })
-        .map(|f| f.to_string_lossy().to_string())
-        .collect();
+    let all_python_files: Vec<String> = crate::files::collect_files(
+        &cli.check_args.paths,
+        config.respect_gitignore,
+        config.respect_global_gitignore,
+        config.respect_git_exclude,
+        config.include_hidden_files,
+    )
+    .iter()
+    .filter(|f| finder::is_python_file(f))
+    .filter_map(|f| match std::fs::canonicalize(f) {
+        Ok(canonical_path) => Some(canonical_path),
+        Err(e) => {
+            always_log!("Failed to canonicalize path '{}': {}", f.display(), e);
+            None
+        }
+    })
+    .map(|f| f.to_string_lossy().to_string())
+    .collect();
 
     if all_python_files.is_empty() {
         always_log!("No Python files found in the specified paths.");
@@ -43,7 +48,7 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
     }
 
     if config.incremental_mode {
-        always_log!(
+        info!(
             "Running in incremental mode against baseline branch '{}'.",
             config.baseline_branch
         );

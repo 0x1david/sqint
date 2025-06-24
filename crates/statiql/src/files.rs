@@ -1,8 +1,8 @@
-use std::process::Command;
-
-use logging::{always_log, info};
-
 use crate::config::{Config, DEFAULT_CONFIG_NAME};
+use ignore::WalkBuilder;
+use logging::{always_log, debug, info};
+use std::{path::PathBuf, process::Command};
+
 /// Returns only files that have changed compared to the baseline branch
 pub fn filter_incremental_files(
     files: &[String],
@@ -135,4 +135,47 @@ pub fn load_config(cli: &crate::Cli) -> Config {
         },
     );
     config
+}
+
+#[must_use]
+#[allow(clippy::fn_params_excessive_bools)]
+pub fn collect_files(
+    paths: &[PathBuf],
+    respect_gitignore: bool,
+    respect_global_gitignore: bool,
+    respect_git_exclude: bool,
+    include_hidden: bool,
+) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+
+    for path in paths {
+        if path.is_file() {
+            debug!("Found file {}", path.display());
+            files.push(path.clone());
+        } else if path.is_dir() {
+            let builder = WalkBuilder::new(path)
+                .git_ignore(respect_gitignore)
+                .git_global(respect_global_gitignore)
+                .git_exclude(respect_git_exclude)
+                .hidden(!include_hidden)
+                .build();
+
+            for res in builder {
+                match res {
+                    Ok(entry) => {
+                        let entry_path = entry.path();
+                        if entry.file_type().is_some_and(|ft| ft.is_file()) {
+                            debug!("Found file {}", entry_path.display());
+                            files.push(entry_path.to_path_buf());
+                        }
+                    }
+                    Err(e) => {
+                        always_log!("Failed to read directory entry: {}", e);
+                    }
+                }
+            }
+        }
+    }
+
+    files
 }

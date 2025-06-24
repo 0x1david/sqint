@@ -27,15 +27,12 @@ fn main() {
 }
 
 fn setup_logging(cli: &Cli) {
-    let lvl = if cli.debug {
-        LogLevel::Debug
-    } else {
-        match (cli.verbose, cli.quiet) {
-            (true, false) => LogLevel::Info,
-            (false, true) => LogLevel::Error,
-            (false, false) => LogLevel::Warn,
-            (true, true) => unreachable!(),
-        }
+    let lvl = match (cli.debug, cli.verbose, cli.quiet) {
+        (true, _, _) => LogLevel::Debug,
+        (false, true, false) => LogLevel::Info,
+        (false, false, true) => LogLevel::Error,
+        (false, false, false) => LogLevel::Warn,
+        (false, true, true) => unreachable!(),
     };
     Logger::init(lvl);
 }

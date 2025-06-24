@@ -8,11 +8,7 @@ use rustpython_parser::{
     Parse,
     ast::{self},
 };
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{fs, path::Path, sync::Arc};
 
 pub struct SqlFinder {
     config: Arc<FinderConfig>,
@@ -122,42 +118,6 @@ impl SqlFinder {
             .chain(self.analyze_stmts(finalbody))
             .collect()
     }
-}
-
-/// Collects and flattens all files in a list of files/directories
-#[must_use]
-pub fn collect_files(paths: &[PathBuf]) -> Vec<PathBuf> {
-    fn inner(path: &Path) -> Vec<PathBuf> {
-        if path.is_file() {
-            debug!("Found file {}", path.display());
-            vec![path.to_path_buf()]
-        } else if path.is_dir() {
-            match path.read_dir() {
-                Ok(entries) => entries
-                    .filter_map(|entry| match entry {
-                        Ok(entry) => Some(inner(&entry.path())),
-                        Err(e) => {
-                            error!(
-                                "Failed to read directory entry in {}: {}",
-                                path.display(),
-                                e
-                            );
-                            None
-                        }
-                    })
-                    .flatten()
-                    .collect(),
-                Err(e) => {
-                    error!("Failed to read directory {}: {}", path.display(), e);
-                    Vec::new()
-                }
-            }
-        } else {
-            Vec::new()
-        }
-    }
-
-    paths.iter().flat_map(|path| inner(path)).collect()
 }
 
 #[must_use]
