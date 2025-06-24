@@ -156,7 +156,7 @@ class_contexts = [
     "fetch_records"
 ]
 
-context_match_mode = "regex"
+context_match_mode = "exact"
 
 # Keyword parameter names to look for in function calls
 kw_param_names = [
@@ -198,6 +198,19 @@ respect_gitignore = true
 
 debug = true
 
+
+# =============================================================================
+# INCREMENTAL MODE
+# =============================================================================
+
+# Only analyze files changed since last run (requires git)
+incremental_mode = true
+
+# Git branch to compare against for incremental mode
+baseline_branch = "master"
+
+# Include staged but uncommitted changes in incremental mode
+include_staged = true
 
 # Enable parallel processing for better performance
 parallel_processing = true

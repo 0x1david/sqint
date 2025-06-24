@@ -127,43 +127,37 @@ impl SqlFinder {
 /// Collects and flattens all files in a list of files/directories
 #[must_use]
 pub fn collect_files(paths: &[PathBuf]) -> Vec<PathBuf> {
-    debug!("{:?}", paths);
-    paths
-        .iter()
-        .flat_map(|path| {
-            if path.is_file() {
-                debug!("Found file {}", path.display());
-                vec![path.clone()]
-            } else if path.is_dir() {
-                read_directory_files(path)
-            } else {
-                Vec::new()
-            }
-        })
-        .collect()
-}
-
-/// Reads all files in a directory
-fn read_directory_files(dir_path: &Path) -> Vec<PathBuf> {
-    match dir_path.read_dir() {
-        Ok(entries) => entries
-            .filter_map(|entry| match entry {
-                Ok(entry) => Some(entry.path()),
+    fn inner(path: &Path) -> Vec<PathBuf> {
+        if path.is_file() {
+            debug!("Found file {}", path.display());
+            vec![path.to_path_buf()]
+        } else if path.is_dir() {
+            match path.read_dir() {
+                Ok(entries) => entries
+                    .filter_map(|entry| match entry {
+                        Ok(entry) => Some(inner(&entry.path())),
+                        Err(e) => {
+                            error!(
+                                "Failed to read directory entry in {}: {}",
+                                path.display(),
+                                e
+                            );
+                            None
+                        }
+                    })
+                    .flatten()
+                    .collect(),
                 Err(e) => {
-                    error!(
-                        "Failed to read directory entry in {}: {}",
-                        dir_path.display(),
-                        e
-                    );
-                    None
+                    error!("Failed to read directory {}: {}", path.display(), e);
+                    Vec::new()
                 }
-            })
-            .collect(),
-        Err(e) => {
-            error!("Failed to read directory {}: {}", dir_path.display(), e);
+            }
+        } else {
             Vec::new()
         }
     }
+
+    paths.iter().flat_map(|path| inner(path)).collect()
 }
 
 #[must_use]

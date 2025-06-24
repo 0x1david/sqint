@@ -2,7 +2,7 @@ use super::config::DEFAULT_CONFIG_NAME;
 use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(name = "staticql")]
 #[command(about = "A linter for SQL code embedded in Python files")]
 #[command(version = "0.0.1")]
@@ -31,7 +31,7 @@ pub struct Cli {
     pub check_args: CheckArgs,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Check Python files for SQL issues
     Check(CheckArgs),
@@ -40,7 +40,7 @@ pub enum Commands {
     Init(InitArgs),
 }
 
-#[derive(Args)]
+#[derive(Args, Debug)]
 pub struct CheckArgs {
     /// Python files or directories to check
     #[arg(value_name = "PATH")]
@@ -63,7 +63,7 @@ pub struct CheckArgs {
     pub errors_only: bool,
 }
 
-#[derive(Args)]
+#[derive(Args, Debug)]
 pub struct InitArgs {
     /// Path where to create the configuration file
     #[arg(short, long, default_value = DEFAULT_CONFIG_NAME)]

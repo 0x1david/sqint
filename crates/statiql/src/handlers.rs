@@ -15,8 +15,14 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
     let all_python_files: Vec<String> = collect_files(&cli.check_args.paths)
         .iter()
         .filter(|f| finder::is_python_file(f))
-        .filter_map(|f| f.to_str())
-        .map(std::string::ToString::to_string)
+        .filter_map(|f| match std::fs::canonicalize(f) {
+            Ok(canonical_path) => Some(canonical_path),
+            Err(e) => {
+                always_log!("Failed to canonicalize path '{}': {}", f.display(), e);
+                None
+            }
+        })
+        .map(|f| f.to_string_lossy().to_string())
         .collect();
 
     if all_python_files.is_empty() {

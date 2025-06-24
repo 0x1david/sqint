@@ -1,6 +1,8 @@
 use std::process::Command;
 
-use logging::always_log;
+use logging::{always_log, info};
+
+use crate::config::{Config, DEFAULT_CONFIG_NAME};
 /// Returns only files that have changed compared to the baseline branch
 pub fn filter_incremental_files(
     files: &[String],
@@ -21,7 +23,11 @@ pub fn filter_incremental_files(
 
     let filtered_files: Vec<String> = files
         .iter()
-        .filter(|file| changed_files.contains(*file))
+        .filter(|file| {
+            changed_files
+                .iter()
+                .any(|changed| std::path::Path::new(file).ends_with(changed))
+        })
         .cloned()
         .collect();
 
@@ -107,4 +113,26 @@ fn get_changed_files(base_branch: &str, incl_staged: bool) -> Option<Vec<String>
     }
 
     Some(absolute_changed_files)
+}
+
+pub fn load_config(cli: &crate::Cli) -> Config {
+    let config_path = std::env::current_dir()
+        .expect("Unable to read current working directory")
+        .join(DEFAULT_CONFIG_NAME);
+    let mut config = Config::default();
+
+    Config::from_file(&config_path).map_or_else(
+        |e| {
+            info!(
+                "No configuration file found at '{}'. Using default configuration.",
+                config_path.display()
+            );
+            info!("Config load error: {}", e);
+        },
+        |file_config| {
+            info!("Loaded configuration from '{}'.", config_path.display());
+            config.merge_with(file_config);
+        },
+    );
+    config
 }
