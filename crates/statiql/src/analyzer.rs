@@ -4,7 +4,7 @@ use sqlparser::dialect::{GenericDialect, PostgreSqlDialect, SQLiteDialect};
 use sqlparser::parser::{Parser, ParserError};
 
 use finder::{SqlExtract, SqlString};
-use logging::{debug, error, info};
+use logging::{error, info};
 
 use crate::config::Config;
 
@@ -30,14 +30,9 @@ impl SqlAnalyzer {
     }
 
     pub fn analyze_sql_extract(&self, extract: &SqlExtract, cfg: &Arc<Config>) {
-        if extract.strings.is_empty() {
-            debug!("Empty extract `{}`", extract.file_path);
-        }
-
         extract
             .strings
             .iter()
-            // .filter(|s| cfg.variable_names.contains(&s.variable_name))
             .for_each(|sql_string| self.analyze_sql_string(sql_string));
     }
 

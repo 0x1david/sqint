@@ -4,6 +4,7 @@ mod cli;
 mod config;
 mod files;
 mod handlers;
+mod logging;
 use clap::Parser;
 use cli::{Cli, Commands};
 use config::{Config, DEFAULT_CONFIG, DEFAULT_CONFIG_NAME};
@@ -12,18 +13,46 @@ use logging::{LogLevel, Logger};
 
 fn main() {
     let cli = Cli::parse();
-    let config = files::load_config(&cli);
+
     setup_logging(&cli);
+
+    debug!("CLI arguments parsed: {:?}", cli);
+
+    let config = files::load_config(&cli);
+
+    debug!("Configuration loaded successfully");
+    info!("Starting SQL analysis tool");
+
     match cli.command {
-        None => handlers::handle_check(&config.into(), &cli),
+        None => {
+            debug!("No explicit command provided, defaulting to check");
+            handlers::handle_check(&config.into(), &cli)
+        }
         Some(ref comm) => {
+            debug!("Processing command: {:?}", comm);
             match comm {
-                Commands::Check(args) => handlers::handle_check(&config.into(), &cli),
-                Commands::Init(_) => handlers::handle_init(),
-            };
+                Commands::Check(_) => {
+                    debug!("Executing check command");
+                    handlers::handle_check(&config.into(), &cli)
+                }
+                Commands::Init(_) => {
+                    debug!("Executing init command");
+                    handlers::handle_init()
+                }
+            }
         }
     }
-    std::process::exit(Logger::exit_code())
+
+    let exit_code = Logger::exit_code();
+    debug!("Exiting with code: {}", exit_code);
+
+    if exit_code != 0 {
+        always_log!("Analysis completed with errors.");
+    } else {
+        always_log!("Analysis completed with no errors found.");
+    }
+
+    std::process::exit(exit_code);
 }
 
 fn setup_logging(cli: &Cli) {
@@ -34,5 +63,7 @@ fn setup_logging(cli: &Cli) {
         (false, false, false) => LogLevel::Warn,
         (false, true, true) => unreachable!(),
     };
+
+    debug!("Logging initialized at level: {:?}", lvl);
     Logger::init(lvl);
 }

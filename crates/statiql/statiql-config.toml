@@ -173,10 +173,10 @@ file_patterns = [
     "*.py",
     "*.pyi", 
     "*.ipynb",
-]
+] # TODO
 
 # File name patterns to exclude from analysis
-exclude_patterns = []
+exclude_patterns = [] # TODO
 
 # Contexts to exclude from analysis TODO: Specify a manual reference link
 ignore_contexts = []
@@ -194,7 +194,7 @@ verbose = false
 quiet = false
 
 # Whether file matching will respect git ignore
-respect_gitignore = true
+respect_gitignore = false
 
 debug = true
 
@@ -204,7 +204,7 @@ debug = true
 # =============================================================================
 
 # Only analyze files changed since last run (requires git)
-incremental_mode = true
+incremental_mode = false # TODO: Should not apply when selecting a single file
 
 # Git branch to compare against for incremental mode
 baseline_branch = "master"
@@ -220,3 +220,5 @@ max_threads = 0
 
 # Number of files to process per thread batch
 thread_chunk_size = 1
+
+# TODO: Add log level here

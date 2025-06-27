@@ -1,15 +1,24 @@
+use logging::{always_log, debug, error, info, warn};
 use std::sync::Arc;
 use std::thread;
 
-use logging::{always_log, info};
-
 pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
+    debug!(
+        "Starting check handler with paths: {:?}",
+        cli.check_args.paths
+    );
+
     let cfg = Arc::new(finder::FinderConfig::new(
         &config.variable_contexts,
         &config.function_contexts,
         &config.class_contexts,
         &config.context_match_mode,
     ));
+
+    debug!(
+        "Created finder config with context match mode: {:?}",
+        config.context_match_mode
+    );
 
     let all_python_files: Vec<String> = crate::files::collect_files(
         &cli.check_args.paths,
@@ -21,14 +30,23 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
     .iter()
     .filter(|f| finder::is_python_file(f))
     .filter_map(|f| match std::fs::canonicalize(f) {
-        Ok(canonical_path) => Some(canonical_path),
+        Ok(canonical_path) => {
+            debug!(
+                "Canonicalized path: {} -> {}",
+                f.display(),
+                canonical_path.display()
+            );
+            Some(canonical_path)
+        }
         Err(e) => {
-            always_log!("Failed to canonicalize path '{}': {}", f.display(), e);
+            warn!("Failed to canonicalize path '{}': {}", f.display(), e);
             None
         }
     })
     .map(|f| f.to_string_lossy().to_string())
     .collect();
+
+    debug!("Found {} Python files total", all_python_files.len());
 
     if all_python_files.is_empty() {
         always_log!("No Python files found in the specified paths.");
@@ -42,6 +60,11 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
         &config.baseline_branch,
     );
 
+    debug!(
+        "After incremental filtering: {} files remain",
+        python_files.len()
+    );
+
     if python_files.is_empty() {
         always_log!("No files to process after filtering.");
         return;
@@ -52,18 +75,22 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
             "Running in incremental mode against baseline branch '{}'.",
             config.baseline_branch
         );
+        debug!("Include staged files: {}", config.include_staged);
     }
 
     if config.parallel_processing {
         let max_threads = if config.max_threads == 0 {
-            std::cmp::max(
-                1,
-                std::thread::available_parallelism()
-                    .map(std::num::NonZero::get)
-                    .unwrap_or(5)
-                    - 1,
-            )
+            let available = std::thread::available_parallelism()
+                .map(std::num::NonZero::get)
+                .unwrap_or(5);
+            let calculated = std::cmp::max(1, available - 1);
+            debug!(
+                "Auto-calculated thread count: {} (available: {})",
+                calculated, available
+            );
+            calculated
         } else {
+            debug!("Using configured thread count: {}", config.max_threads);
             config.max_threads
         };
 
@@ -74,67 +101,115 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
         );
 
         let chunk_size = std::cmp::max(1, python_files.len() / max_threads);
+        debug!("Chunk size per thread: {}", chunk_size);
 
-        python_files
+        let handles: Vec<thread::JoinHandle<()>> = python_files
             .chunks(chunk_size)
-            .map(<[std::string::String]>::to_vec)
-            .collect::<Vec<Vec<String>>>()
-            .into_iter()
-            .map(|chunk| {
+            .enumerate()
+            .map(|(i, chunk)| {
+                let chunk_vec = chunk.to_vec();
                 let cfg = cfg.clone();
                 let app_cfg = config.clone();
+                debug!("Starting thread {} with {} files", i, chunk_vec.len());
+
                 thread::spawn(move || {
-                    for file_path in chunk {
+                    debug!("Thread {} processing files: {:?}", i, chunk_vec);
+                    for file_path in chunk_vec {
                         process_file(&file_path, cfg.clone(), &app_cfg.clone());
                     }
+                    debug!("Thread {} completed", i);
                 })
             })
-            .collect::<Vec<thread::JoinHandle<()>>>()
-            .into_iter()
-            .for_each(|handle| {
-                if handle.join().is_err() {
-                    always_log!("Warning: A worker thread panicked during processing.");
-                }
-            });
+            .collect();
+
+        let mut failed_threads = 0;
+        for (i, handle) in handles.into_iter().enumerate() {
+            if let Err(e) = handle.join() {
+                error!("Worker thread {} panicked during processing: {:?}", i, e);
+                failed_threads += 1;
+            }
+        }
+
+        if failed_threads > 0 {
+            warn!(
+                "{} worker threads failed during parallel processing",
+                failed_threads
+            );
+        }
     } else {
         info!("Processing {} files sequentially...", python_files.len());
-        for file_path in &python_files {
+        for (i, file_path) in python_files.iter().enumerate() {
+            debug!(
+                "Processing file {}/{}: {}",
+                i + 1,
+                python_files.len(),
+                file_path
+            );
             process_file(file_path, cfg.clone(), &config.clone());
         }
     }
-    info!("Analysis complete.");
+
+    always_log!("Analysis complete. Processed {} files.", python_files.len());
 }
 
 fn process_file(file_path: &str, cfg: Arc<crate::FinderConfig>, app_cfg: &Arc<crate::Config>) {
+    debug!("Starting analysis of file: {}", file_path);
+
     let sql_finder = finder::SqlFinder::new(cfg);
     if let Some(sql_extract) = sql_finder.analyze_file(file_path) {
+        debug!("Found SQL extracts in {}", file_path);
         let analyzer = crate::analyzer::SqlAnalyzer::new(&crate::analyzer::SqlDialect::PostgreSQL);
         analyzer.analyze_sql_extract(&sql_extract, app_cfg);
+    } else {
+        debug!("No SQL found in file: {}", file_path);
     }
 }
 
 pub fn handle_init() {
-    let path = std::env::current_dir()
-        .expect("Failed fetching current working directory.")
-        .join(crate::DEFAULT_CONFIG_NAME);
+    debug!("Initializing configuration file");
+
+    let current_dir = match std::env::current_dir() {
+        Ok(dir) => {
+            debug!("Current working directory: {}", dir.display());
+            dir
+        }
+        Err(e) => {
+            error!("Failed to get current working directory: {}", e);
+            return;
+        }
+    };
+
+    let path = current_dir.join(crate::DEFAULT_CONFIG_NAME);
+    debug!("Configuration file path: {}", path.display());
 
     if path.exists() {
         always_log!(
             "Configuration file already exists at '{}'. Not overwriting.",
             path.display()
         );
+        info!("Use --force flag to overwrite existing configuration (if implemented)");
         return;
     }
 
+    debug!(
+        "Writing default configuration of {} bytes",
+        crate::DEFAULT_CONFIG.len()
+    );
+
     match std::fs::write(&path, crate::DEFAULT_CONFIG) {
-        Ok(()) => always_log!(
-            "Created default configuration file at '{}'.",
-            path.display()
-        ),
-        Err(e) => always_log!(
-            "Failed to create configuration file at '{}': {}. Check file permissions.",
-            path.display(),
-            e
-        ),
+        Ok(()) => {
+            always_log!(
+                "Created default configuration file at '{}'.",
+                path.display()
+            );
+            info!("You can now customize the configuration to suit your needs");
+        }
+        Err(e) => {
+            error!(
+                "Failed to create configuration file at '{}': {}. Check file permissions.",
+                path.display(),
+                e
+            );
+        }
     }
 }

@@ -1,4 +1,3 @@
-
 [workspace]
 members = [
     "crates/finder",
@@ -15,6 +14,7 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 ignore = "0.4.23"
+atty = "0.2.14"
 clap = { version = "4.5.40", features = ["derive"] }
 regex = "1.11.1"
 rustpython-parser = "0.4.0"
