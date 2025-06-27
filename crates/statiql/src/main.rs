@@ -26,18 +26,18 @@ fn main() {
     match cli.command {
         None => {
             debug!("No explicit command provided, defaulting to check");
-            handlers::handle_check(&config.into(), &cli)
+            handlers::handle_check(&config.into(), &cli);
         }
         Some(ref comm) => {
             debug!("Processing command: {:?}", comm);
             match comm {
                 Commands::Check(_) => {
                     debug!("Executing check command");
-                    handlers::handle_check(&config.into(), &cli)
+                    handlers::handle_check(&config.into(), &cli);
                 }
                 Commands::Init(_) => {
                     debug!("Executing init command");
-                    handlers::handle_init()
+                    handlers::handle_init();
                 }
             }
         }

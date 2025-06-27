@@ -18,25 +18,25 @@ pub enum LogLevel {
 }
 
 impl LogLevel {
-    fn as_str(&self) -> &'static str {
+    const fn as_str(self) -> &'static str {
         match self {
-            LogLevel::Always => "ALWAYS",
-            LogLevel::Error => "ERROR",
-            LogLevel::Warn => "WARN",
-            LogLevel::Info => "INFO",
-            LogLevel::Bail => "BAIL",
-            LogLevel::Debug => "DEBUG",
+            Self::Always => "ALWAYS",
+            Self::Error => "ERROR",
+            Self::Warn => "WARN",
+            Self::Info => "INFO",
+            Self::Bail => "BAIL",
+            Self::Debug => "DEBUG",
         }
     }
 
-    fn color_code(&self) -> &'static str {
+    const fn color_code(self) -> &'static str {
         match self {
-            LogLevel::Always => "\x1b[1;37m", // Bold White
-            LogLevel::Error => "\x1b[31m",    // Red
-            LogLevel::Warn => "\x1b[33m",     // Yellow
-            LogLevel::Info => "\x1b[32m",     // Green
-            LogLevel::Bail => "\x1b[1;31m",   // Bold Red
-            LogLevel::Debug => "\x1b[36m",    // Cyan
+            Self::Always => "\x1b[1;37m", // Bold White
+            Self::Error => "\x1b[31m",    // Red
+            Self::Warn => "\x1b[33m",     // Yellow
+            Self::Info => "\x1b[32m",     // Green
+            Self::Bail => "\x1b[1;31m",   // Bold Red
+            Self::Debug => "\x1b[36m",    // Cyan
         }
     }
 
@@ -62,7 +62,6 @@ impl Logger {
             0 => LogLevel::Always,
             1 => LogLevel::Error,
             2 => LogLevel::Warn,
-            3 => LogLevel::Info,
             4 => LogLevel::Bail,
             5 => LogLevel::Debug,
             _ => LogLevel::Info, // fallback
@@ -116,11 +115,11 @@ impl Logger {
 
         match level {
             LogLevel::Error | LogLevel::Bail => {
-                let _ = writeln!(io::stderr(), "{}", output);
+                let _ = writeln!(io::stderr(), "{output}");
                 let _ = io::stderr().flush();
             }
             _ => {
-                let _ = writeln!(io::stdout(), "{}", output);
+                let _ = writeln!(io::stdout(), "{output}");
                 let _ = io::stdout().flush();
             }
         }
@@ -145,7 +144,7 @@ impl Logger {
     }
 
     pub fn exit_code() -> i32 {
-        if Self::has_error_occurred() { 1 } else { 0 }
+        i32::from(Self::has_error_occurred())
     }
 
     #[cfg(test)]
@@ -166,54 +165,53 @@ macro_rules! log {
         )
     };
 }
-
 #[macro_export]
 macro_rules! always_log {
-    ($($arg:tt)*) => {
-        $crate::log!($crate::LogLevel::Always, $($arg)*)
+    ($fmt:expr $(, $($arg:tt)*)?) => {
+        $crate::log!($crate::LogLevel::Always, $fmt $(, $($arg)*)?)
     };
 }
 
 #[macro_export]
 macro_rules! error {
-    ($($arg:tt)*) => {
-        $crate::log!($crate::LogLevel::Error, $($arg)*)
+    ($fmt:expr $(, $($arg:tt)*)?) => {
+        $crate::log!($crate::LogLevel::Error, $fmt $(, $($arg)*)?)
     };
 }
 
 #[macro_export]
 macro_rules! bail {
-    ($return_value:expr, $($arg:tt)*) => {{
-        $crate::log!($crate::LogLevel::Bail, $($arg)*);
+    ($return_value:expr, $fmt:expr $(, $($arg:tt)*)?) => {{
+        $crate::log!($crate::LogLevel::Bail, $fmt $(, $($arg)*)?);
         return $return_value;
     }};
 }
 
 #[macro_export]
 macro_rules! bail_with {
-    ($return_value:expr, $($arg:tt)*) => {{
-        $crate::log!($crate::LogLevel::Bail, $($arg)*);
+    ($return_value:expr, $fmt:expr $(, $($arg:tt)*)?) => {{
+        $crate::log!($crate::LogLevel::Bail, $fmt $(, $($arg)*)?);
         $return_value
     }};
 }
 
 #[macro_export]
 macro_rules! warn {
-    ($($arg:tt)*) => {
-        $crate::log!($crate::LogLevel::Warn, $($arg)*)
+    ($fmt:expr $(, $($arg:tt)*)?) => {
+        $crate::log!($crate::LogLevel::Warn, $fmt $(, $($arg)*)?)
     };
 }
 
 #[macro_export]
 macro_rules! info {
-    ($($arg:tt)*) => {
-        $crate::log!($crate::LogLevel::Info, $($arg)*)
+    ($fmt:expr $(, $($arg:tt)*)?) => {
+        $crate::log!($crate::LogLevel::Info, $fmt $(, $($arg)*)?)
     };
 }
 
 #[macro_export]
 macro_rules! debug {
-    ($($arg:tt)*) => {
-        $crate::log!($crate::LogLevel::Debug, $($arg)*)
+    ($fmt:expr $(, $($arg:tt)*)?) => {
+        $crate::log!($crate::LogLevel::Debug, $fmt $(, $($arg)*)?)
     };
 }

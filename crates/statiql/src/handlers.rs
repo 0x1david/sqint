@@ -2,6 +2,7 @@ use logging::{always_log, debug, error, info, warn};
 use std::sync::Arc;
 use std::thread;
 
+#[allow(clippy::too_many_lines)]
 pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
     debug!(
         "Starting check handler with paths: {:?}",

@@ -1,4 +1,4 @@
-#![allow(clippy::needless_collect)]
+#![allow(clippy::needless_collect, clippy::single_match_else)]
 use crate::finder_types::{FinderType, SqlResult};
 use crate::format::format_python_string;
 use crate::{SqlFinder, SqlString};

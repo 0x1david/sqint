@@ -23,10 +23,10 @@ impl SqlFinder {
 
     #[must_use]
     pub fn analyze_file(&self, file_path: &str) -> Option<SqlExtract> {
-        debug!("Starting analysis of file: {}", file_path);
+        debug!("Starting analysis of file: {file_path}");
 
         let source_code = fs::read_to_string(file_path)
-            .inspect_err(|e| error!("Failed to read file '{}': {}", file_path, e))
+            .inspect_err(|e| error!("Failed to read file '{file_path}': {e}"))
             .ok()?;
 
         debug!(
@@ -37,8 +37,8 @@ impl SqlFinder {
 
         let parsed = ast::Suite::parse(&source_code, file_path)
             .inspect_err(|e| {
-                error!("Failed to parse Python file '{}': {}", file_path, e);
-                debug!("Parse error details for {}: {:?}", file_path, e);
+                error!("Failed to parse Python file '{file_path}': {e}");
+                debug!("Parse error details for {file_path}: {e:?}");
             })
             .ok()?;
 
@@ -70,6 +70,7 @@ impl SqlFinder {
         })
     }
 
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn analyze_stmts(&self, suite: &ast::Suite) -> Vec<SqlString> {
         debug!("Analyzing {} statements", suite.len());
         let mut results = Vec::new();
@@ -301,21 +302,21 @@ impl SqlFinder {
             .iter()
             .enumerate()
             .filter_map(|(i, h)| {
-                if let Some(eh) = h.as_except_handler() {
-                    debug!(
-                        "Processing exception handler {}/{} with {} statements",
-                        i + 1,
-                        handlers.len(),
-                        eh.body.len()
-                    );
-                    Some(self.analyze_stmts(&eh.body))
-                } else {
-                    warn!(
-                        "Encountered non-ExceptHandler in handlers list at index {}",
-                        i
-                    );
-                    None
-                }
+                h.as_except_handler().map_or_else(
+                    || {
+                        warn!("Encountered non-ExceptHandler in handlers list at index {i}");
+                        None
+                    },
+                    |eh| {
+                        debug!(
+                            "Processing exception handler {}/{} with {} statements",
+                            i + 1,
+                            handlers.len(),
+                            eh.body.len()
+                        );
+                        Some(self.analyze_stmts(&eh.body))
+                    },
+                )
             })
             .flatten()
             .collect();
