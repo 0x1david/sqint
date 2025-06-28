@@ -13,7 +13,6 @@ use logging::{Logger, always_log, debug, info};
 fn main() {
     let cli = Cli::parse();
     let config = files::load_config(&cli);
-    dbg!(&config);
     setup_logging(&cli, &config);
 
     debug!("CLI arguments parsed: {:?}", cli);

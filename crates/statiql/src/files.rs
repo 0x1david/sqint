@@ -141,13 +141,14 @@ pub fn collect_files(
     respect_global_gitignore: bool,
     respect_git_exclude: bool,
     include_hidden: bool,
-) -> Vec<PathBuf> {
+) -> (Vec<PathBuf>, Vec<PathBuf>) {
     let mut files = Vec::new();
+    let mut explicits = Vec::new();
 
     for path in paths {
         if path.is_file() {
-            debug!("Found file {}", path.display());
-            files.push(path.clone());
+            debug!("Found explicit file {}", path.display());
+            explicits.push(path.clone());
         } else if path.is_dir() {
             let builder = WalkBuilder::new(path)
                 .git_ignore(respect_gitignore)
@@ -173,5 +174,5 @@ pub fn collect_files(
         }
     }
 
-    files
+    (files, explicits)
 }

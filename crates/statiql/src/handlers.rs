@@ -20,46 +20,33 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
         "Created finder config with context match mode: {:?}",
         config.context_match_mode
     );
-
-    let all_python_files: Vec<String> = crate::files::collect_files(
+    let (found_files, explicit_files) = crate::files::collect_files(
         &cli.check_args.paths,
         config.respect_gitignore,
         config.respect_global_gitignore,
         config.respect_git_exclude,
         config.include_hidden_files,
-    )
-    .iter()
-    .filter(|f| finder::is_python_file(f))
-    .filter_map(|f| match std::fs::canonicalize(f) {
-        Ok(canonical_path) => {
-            debug!(
-                "Canonicalized path: {} -> {}",
-                f.display(),
-                canonical_path.display()
-            );
-            Some(canonical_path)
-        }
-        Err(e) => {
-            warn!("Failed to canonicalize path '{}': {}", f.display(), e);
-            None
-        }
-    })
-    .map(|f| f.to_string_lossy().to_string())
-    .collect();
+    );
 
-    debug!("Found {} Python files total", all_python_files.len());
+    let explicit_files: Vec<String> = canonicalize_python_files(explicit_files);
+    let found_files = canonicalize_python_files(found_files);
+    let no_of_files = found_files.len() + explicit_files.len();
+    debug!("Found {no_of_files} Python files total");
 
-    if all_python_files.is_empty() {
+    if found_files.is_empty() && explicit_files.is_empty() {
         always_log!("No Python files found in the specified paths.");
         return;
     }
 
-    let python_files = crate::files::filter_incremental_files(
-        &all_python_files,
+    let python_files: Vec<String> = crate::files::filter_incremental_files(
+        &found_files,
         config.incremental_mode,
         config.include_staged,
         &config.baseline_branch,
-    );
+    )
+    .into_iter()
+    .chain(explicit_files)
+    .collect();
 
     debug!(
         "After incremental filtering: {} files remain",
@@ -151,6 +138,28 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
     }
 
     always_log!("Analysis complete. Processed {} files.", python_files.len());
+}
+
+fn canonicalize_python_files(files: Vec<std::path::PathBuf>) -> Vec<String> {
+    files
+        .into_iter()
+        .filter(|f| finder::is_python_file(f))
+        .filter_map(|f| match std::fs::canonicalize(&f) {
+            Ok(canonical_path) => {
+                debug!(
+                    "Canonicalized path: {} -> {}",
+                    f.display(),
+                    canonical_path.display()
+                );
+                Some(canonical_path)
+            }
+            Err(e) => {
+                warn!("Failed to canonicalize path '{}': {}", f.display(), e);
+                None
+            }
+        })
+        .map(|f| f.to_string_lossy().to_string())
+        .collect()
 }
 
 fn process_file(file_path: &str, cfg: Arc<crate::FinderConfig>, app_cfg: &Arc<crate::Config>) {

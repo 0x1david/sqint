@@ -35,7 +35,7 @@ pub enum Commands {
 #[derive(Args, Debug)]
 pub struct CheckArgs {
     /// Python files or directories to check
-    #[arg(value_name = "PATH")]
+    #[arg(value_name = "PATH", default_value = ".")]
     pub paths: Vec<PathBuf>,
     /// File patterns to exclude (e.g., "test_*.py")
     #[arg(long, value_delimiter = ',')]
