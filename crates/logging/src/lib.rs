@@ -79,10 +79,6 @@ impl Logger {
     }
 
     pub fn log_message(level: LogLevel, message: &str, file: &str, line: u32) {
-        if !Self::should_log(level) {
-            return;
-        }
-
         let filename = std::path::Path::new(file)
             .file_name()
             .and_then(|name| name.to_str())
@@ -121,11 +117,9 @@ impl Logger {
         match level {
             LogLevel::Error | LogLevel::Bail => {
                 let _ = writeln!(io::stderr(), "{output}");
-                let _ = io::stderr().flush();
             }
             _ => {
                 let _ = writeln!(io::stdout(), "{output}");
-                let _ = io::stdout().flush();
             }
         }
 
@@ -152,12 +146,14 @@ impl Logger {
 #[macro_export]
 macro_rules! log {
     ($level:expr, $($arg:tt)*) => {
-        $crate::Logger::log_message(
-            $level,
-            &format!($($arg)*),
-            file!(),
-            line!()
-        )
+        if $crate::Logger::should_log($level) {
+            $crate::Logger::log_message(
+                $level,
+                &format!($($arg)*),
+                file!(),
+                line!()
+            )
+        }
     };
 }
 #[macro_export]

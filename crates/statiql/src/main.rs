@@ -12,7 +12,6 @@ use logging::{Logger, always_log, debug, info};
 
 //TODO: Proper capture of linecols
 //TODO: Other commands?
-//TODO: PERF
 //TODO: Get rid of regex
 //TODO: Big Refactor
 fn main() {

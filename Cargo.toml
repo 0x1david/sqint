@@ -25,3 +25,6 @@ toml = "0.8.23"
 logging = { path = "crates/logging" }
 finder = { path = "crates/finder" }
 globset = "0.4.16"
+
+[profile.release]
+debug = true
