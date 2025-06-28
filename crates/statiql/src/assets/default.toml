@@ -3,26 +3,16 @@
 # =============================================================================
 # Variable names to look for and analyze (empty list means analyze all variables)
 variable_contexts = [
-    "_query",
-    "_sql",
     "query",
     "sql",
     "statement",
-    "cmd",
-    "command",
-    "sql_query",
-    "db_query",
-    "select_query",
-    "insert_query",
-    "update_query",
-    "delete_query",
 ]
 # Function names to analyze SQL within (empty list means analyze all functions)
 function_contexts = []
 # Class method names to analyze SQL within (empty list means analyze all methods)
 class_contexts = []
 # How to match context names: "exact", "contains", or "regex"
-context_match_mode = "exact"
+context_match_mode = "regex"
 # Minimum string length of an sql string to analyse
 min_sql_length = 10
 # Whether contexts (function names, variable names...) are case-sensitive

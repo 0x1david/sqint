@@ -49,23 +49,13 @@ impl Default for Config {
         Self {
             // Detection Settings
             variable_contexts: vec![
-                "_query".to_string(),
-                "_sql".to_string(),
-                "query".to_string(),
-                "sql".to_string(),
-                "statement".to_string(),
-                "cmd".to_string(),
-                "command".to_string(),
-                "sql_query".to_string(),
-                "db_query".to_string(),
-                "select_query".to_string(),
-                "insert_query".to_string(),
-                "update_query".to_string(),
-                "delete_query".to_string(),
+                "*query*".to_string(),
+                "*sql*".to_string(),
+                "*statement*".to_string(),
             ],
             function_contexts: vec![],
             class_contexts: vec![],
-            context_match_mode: "exact".to_string(),
+            context_match_mode: "regex".to_string(),
             min_sql_length: 10,
             case_sensitive: false,
 
