@@ -1,13 +1,10 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use sqlparser::dialect::{GenericDialect, PostgreSqlDialect, SQLiteDialect};
 use sqlparser::parser::{Parser, ParserError};
 
 use finder::{SqlExtract, SqlString};
-use logging::{always_log, error, info};
-
-use crate::config::Config;
+use logging::{error, info};
 
 #[derive(Debug, Clone)]
 pub enum SqlDialect {
@@ -33,9 +30,9 @@ impl SqlAnalyzer {
             SqlDialect::PostgreSQL => Box::new(PostgreSqlDialect {}),
             SqlDialect::SQLite => Box::new(SQLiteDialect {}),
         };
-        placeholders.iter().for_each(|p| {
+        for p in placeholders {
             dialect_mappings.insert(p.clone(), "PLACEHOLDER".to_string());
-        });
+        }
 
         Self {
             dialect,
@@ -43,7 +40,7 @@ impl SqlAnalyzer {
         }
     }
 
-    pub fn analyze_sql_extract(&self, extract: &SqlExtract, cfg: &Arc<Config>) {
+    pub fn analyze_sql_extract(&self, extract: &SqlExtract) {
         extract
             .strings
             .iter()

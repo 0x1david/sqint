@@ -106,20 +106,6 @@ impl Config {
             .map_err(|e| ConfigError::Parse(format!("Failed to parse TOML: {e}")))
     }
 
-    pub fn load_or_default<P: AsRef<Path>>(path: P) -> Self {
-        Self::from_file(path).unwrap_or_default()
-    }
-
-    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), ConfigError> {
-        let toml_content = toml::to_string_pretty(self)
-            .map_err(|e| ConfigError::Parse(format!("Failed to serialize to TOML: {e}")))?;
-
-        fs::write(path, toml_content)
-            .map_err(|e| ConfigError::Io(format!("Failed to write config file: {e}")))?;
-
-        Ok(())
-    }
-
     /// Merge this config with another, preferring values from the other config
     pub fn merge_with(&mut self, other: Self) {
         // Detection Settings

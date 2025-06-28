@@ -151,7 +151,7 @@ fn process_file(file_path: &str, cfg: Arc<crate::FinderConfig>, app_cfg: &Arc<cr
             app_cfg.dialect_mappings.clone(),
             &app_cfg.param_markers,
         );
-        analyzer.analyze_sql_extract(&sql_extract, app_cfg);
+        analyzer.analyze_sql_extract(&sql_extract);
     } else {
         debug!("No SQL found in file: {}", file_path);
     }

@@ -116,7 +116,7 @@ fn get_changed_files(base_branch: &str, incl_staged: bool) -> Option<Vec<String>
     Some(absolute_changed_files)
 }
 
-pub fn load_config(cli: &crate::Cli) -> Config {
+pub fn load_config() -> Config {
     let config_path = std::env::current_dir()
         .expect("Unable to read current working directory")
         .join(DEFAULT_CONFIG_NAME);
@@ -125,8 +125,8 @@ pub fn load_config(cli: &crate::Cli) -> Config {
     Config::from_file(&config_path).map_or_else(
         |e| {
             always_log!(
-                "No configuration file found at '{}'. Using default configuration.",
-                config_path.display()
+                "Using default configuration. Couldn't load config from {}: '{e}'.",
+                config_path.display(),
             );
         },
         |file_config| config.merge_with(file_config),

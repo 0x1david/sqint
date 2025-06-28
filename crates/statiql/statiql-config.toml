@@ -43,9 +43,6 @@ file_patterns = [
 # File name patterns to exclude from analysis
 exclude_patterns = []
 
-# Contexts to exclude from analysis TODO: Specify a manual reference link
-ignore_contexts = []
-
 # Minimum string length of an sql string to analyse
 min_sql_length = 10
 
