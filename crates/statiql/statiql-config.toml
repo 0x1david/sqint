@@ -169,22 +169,19 @@ targets = ["."]
 
 # File patterns to look for in the specified `targets`
 file_patterns = [
-    "*.py",
-    "*.pyi", 
-    "*.ipynb",
-] # TODO
+    ".*.py",
+    ".*.pyi", 
+    ".*.ipynb",
+]
 
 # File name patterns to exclude from analysis
-exclude_patterns = [] # TODO
+exclude_patterns = []
 
 # Contexts to exclude from analysis TODO: Specify a manual reference link
 ignore_contexts = []
 
 # Minimum string length of an sql string to analyse
 min_sql_length = 10
-
-# Whether contexts (function names, variable names...) are case-sensitive
-case_sensitive = false
 
 # Whether file matching will respect git ignore
 respect_gitignore = false

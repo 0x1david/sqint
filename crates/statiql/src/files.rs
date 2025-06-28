@@ -1,6 +1,7 @@
 use crate::config::{Config, DEFAULT_CONFIG_NAME};
 use ignore::WalkBuilder;
-use logging::{always_log, debug};
+use logging::{always_log, debug, warn};
+use regex::Regex;
 use std::{path::PathBuf, process::Command};
 
 /// Returns only files that have changed compared to the baseline branch
@@ -175,4 +176,73 @@ pub fn collect_files(
     }
 
     (files, explicits)
+}
+
+pub fn canonicalize_files(files: Vec<std::path::PathBuf>) -> Vec<String> {
+    files
+        .into_iter()
+        .filter_map(|f| match std::fs::canonicalize(&f) {
+            Ok(canonical_path) => {
+                debug!(
+                    "Canonicalized path: {} -> {}",
+                    f.display(),
+                    canonical_path.display()
+                );
+                Some(canonical_path)
+            }
+            Err(e) => {
+                warn!("Failed to canonicalize path '{}': {}", f.display(), e);
+                None
+            }
+        })
+        .map(|f| f.to_string_lossy().to_string())
+        .collect()
+}
+
+pub fn filter_file_pats(
+    files: Vec<String>,
+    include_pats: &[String],
+    exclude_pats: &[String],
+) -> Vec<String> {
+    let include_pats: Vec<Regex> = include_pats
+        .iter()
+        .map(|p| Regex::new(p))
+        .filter_map(|r| match r {
+            Ok(regex) => Some(regex),
+            Err(e) => {
+                always_log!("Invalid regex in include_patterns: {e}");
+                None
+            }
+        })
+        .collect();
+
+    let exclude_pats: Vec<Regex> = exclude_pats
+        .iter()
+        .map(|p| Regex::new(p))
+        .filter_map(|r| match r {
+            Ok(regex) => Some(regex),
+            Err(e) => {
+                always_log!("Invalid regex in exclude_patterns: {e}");
+                None
+            }
+        })
+        .collect();
+
+    files
+        .into_iter()
+        .filter(|file| {
+            let matches = include_pats.iter().any(|pat| pat.is_match(file));
+            if !matches {
+                debug!("File '{file}' filtered out by include patterns");
+            }
+            matches
+        })
+        .filter(|file| {
+            let excluded = exclude_pats.iter().any(|pat| pat.is_match(file));
+            if excluded {
+                debug!("File '{file}' filtered out by exclude patterns");
+            }
+            !excluded
+        })
+        .collect()
 }

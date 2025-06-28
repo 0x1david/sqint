@@ -49,9 +49,10 @@ impl Default for Config {
         Self {
             // Detection Settings
             variable_contexts: vec![
-                "*query*".to_string(),
-                "*sql*".to_string(),
-                "*statement*".to_string(),
+                ".*query.*".to_string(),
+                ".*sql.*".to_string(),
+                ".*statement.*".to_string(),
+                ".*stmt.*".to_string(),
             ],
             function_contexts: vec![],
             class_contexts: vec![],
@@ -61,9 +62,9 @@ impl Default for Config {
 
             // File Processing
             file_patterns: vec![
-                "*.py".to_string(),
-                "*.pyi".to_string(),
-                "*.ipynb".to_string(),
+                ".*.py".to_string(),
+                ".*.pyi".to_string(),
+                ".*.ipynb".to_string(),
             ],
             exclude_patterns: vec![],
             respect_gitignore: true,

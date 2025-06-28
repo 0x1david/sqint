@@ -339,22 +339,3 @@ impl SqlFinder {
             .collect()
     }
 }
-
-#[must_use]
-pub fn is_python_file(file: &Path) -> bool {
-    let is_py = file.extension().and_then(|ext| ext.to_str()) == Some("py");
-
-    if is_py {
-        debug!("Identified Python file: {}", file.display());
-    } else {
-        debug!(
-            "Not a Python file (extension: {:?}): {}",
-            file.extension()
-                .and_then(|ext| ext.to_str())
-                .unwrap_or("none"),
-            file.display()
-        );
-    }
-
-    is_py
-}

@@ -28,21 +28,26 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
         config.include_hidden_files,
     );
 
-    let explicit_files: Vec<String> = canonicalize_python_files(explicit_files);
-    let found_files = canonicalize_python_files(found_files);
+    let explicit_files: Vec<String> = crate::files::canonicalize_files(explicit_files);
+    let found_files = crate::files::canonicalize_files(found_files);
     let no_of_files = found_files.len() + explicit_files.len();
-    debug!("Found {no_of_files} Python files total");
+    debug!("Found {no_of_files} files total");
 
     if found_files.is_empty() && explicit_files.is_empty() {
-        always_log!("No Python files found in the specified paths.");
+        always_log!("No target files found in the specified paths.");
         return;
     }
 
-    let python_files: Vec<String> = crate::files::filter_incremental_files(
+    let target_files: Vec<String> = crate::files::filter_incremental_files(
         &found_files,
         config.incremental_mode,
         config.include_staged,
         &config.baseline_branch,
+    );
+    let target_files: Vec<String> = crate::files::filter_file_pats(
+        target_files,
+        &config.file_patterns,
+        &config.exclude_patterns,
     )
     .into_iter()
     .chain(explicit_files)
@@ -50,10 +55,10 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
 
     debug!(
         "After incremental filtering: {} files remain",
-        python_files.len()
+        target_files.len()
     );
 
-    if python_files.is_empty() {
+    if target_files.is_empty() {
         always_log!("No files to process after filtering.");
         return;
     }
@@ -84,14 +89,14 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
 
         info!(
             "Processing {} files in parallel using {} threads...",
-            python_files.len(),
+            target_files.len(),
             max_threads
         );
 
-        let chunk_size = std::cmp::max(1, python_files.len() / max_threads);
+        let chunk_size = std::cmp::max(1, target_files.len() / max_threads);
         debug!("Chunk size per thread: {}", chunk_size);
 
-        let handles: Vec<thread::JoinHandle<()>> = python_files
+        let handles: Vec<thread::JoinHandle<()>> = target_files
             .chunks(chunk_size)
             .enumerate()
             .map(|(i, chunk)| {
@@ -125,41 +130,19 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
             );
         }
     } else {
-        info!("Processing {} files sequentially...", python_files.len());
-        for (i, file_path) in python_files.iter().enumerate() {
+        info!("Processing {} files sequentially...", target_files.len());
+        for (i, file_path) in target_files.iter().enumerate() {
             debug!(
                 "Processing file {}/{}: {}",
                 i + 1,
-                python_files.len(),
+                target_files.len(),
                 file_path
             );
             process_file(file_path, cfg.clone(), &config.clone());
         }
     }
 
-    always_log!("Analysis complete. Processed {} files.", python_files.len());
-}
-
-fn canonicalize_python_files(files: Vec<std::path::PathBuf>) -> Vec<String> {
-    files
-        .into_iter()
-        .filter(|f| finder::is_python_file(f))
-        .filter_map(|f| match std::fs::canonicalize(&f) {
-            Ok(canonical_path) => {
-                debug!(
-                    "Canonicalized path: {} -> {}",
-                    f.display(),
-                    canonical_path.display()
-                );
-                Some(canonical_path)
-            }
-            Err(e) => {
-                warn!("Failed to canonicalize path '{}': {}", f.display(), e);
-                None
-            }
-        })
-        .map(|f| f.to_string_lossy().to_string())
-        .collect()
+    always_log!("Analysis complete. Processed {} files.", target_files.len());
 }
 
 fn process_file(file_path: &str, cfg: Arc<crate::FinderConfig>, app_cfg: &Arc<crate::Config>) {
