@@ -11,8 +11,6 @@ variable_contexts = [
 function_contexts = []
 # Class method names to analyze SQL within (empty list means analyze all methods)
 class_contexts = []
-# How to match context names: "exact", "contains", or "regex"
-context_match_mode = "regex"
 # Minimum string length of an sql string to analyse
 min_sql_length = 10
 # Whether contexts (function names, variable names...) are case-sensitive

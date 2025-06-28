@@ -8,7 +8,7 @@ use rustpython_parser::{
     Parse,
     ast::{self},
 };
-use std::{fs, path::Path, sync::Arc};
+use std::{fs, sync::Arc};
 
 pub struct SqlFinder {
     config: Arc<FinderConfig>,

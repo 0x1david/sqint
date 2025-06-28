@@ -24,3 +24,4 @@ thiserror = "2.0.12"
 toml = "0.8.23"
 logging = { path = "crates/logging" }
 finder = { path = "crates/finder" }
+globset = "0.4.16"

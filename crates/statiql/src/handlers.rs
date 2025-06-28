@@ -13,13 +13,8 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
         &config.variable_contexts,
         &config.function_contexts,
         &config.class_contexts,
-        &config.context_match_mode,
     ));
 
-    debug!(
-        "Created finder config with context match mode: {:?}",
-        config.context_match_mode
-    );
     let (found_files, explicit_files) = crate::files::collect_files(
         &cli.check_args.paths,
         config.respect_gitignore,

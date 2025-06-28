@@ -1,9 +1,8 @@
-use std::collections::HashSet;
 use std::fmt;
 use std::ops::{Add, Div, Mul, Sub};
 
-use logging::bail_with;
-use regex::Regex;
+use globset::{Glob, GlobSet, GlobSetBuilder};
+use logging::{always_log, debug, error};
 
 // Internal result type for processing
 #[derive(Debug, Clone)]
@@ -41,110 +40,64 @@ pub struct SqlString {
 }
 
 #[derive(Debug, Clone)]
-pub enum CtxContainer {
-    Exact(HashSet<String>),
-    Contains(Vec<String>),
-    Regex(Vec<Regex>),
-}
-
-impl CtxContainer {
-    pub fn matches(&self, input: &str) -> bool {
-        match self {
-            Self::Exact(set) => set.contains(input),
-            Self::Contains(patterns) => patterns.iter().any(|pattern| input.contains(pattern)),
-            Self::Regex(regexes) => regexes.iter().any(|regex| regex.is_match(input)),
-        }
-    }
-    pub fn exact<T>(patterns: T) -> Self
-    where
-        T: IntoIterator,
-        T::Item: AsRef<str>,
-    {
-        let set = patterns
-            .into_iter()
-            .map(|s| s.as_ref().to_string())
-            .collect();
-        Self::Exact(set)
-    }
-
-    pub fn contains<T>(patterns: T) -> Self
-    where
-        T: IntoIterator,
-        T::Item: AsRef<str>,
-    {
-        let vec = patterns
-            .into_iter()
-            .map(|s| s.as_ref().to_string())
-            .collect();
-        Self::Contains(vec)
-    }
-
-    pub fn regex<T>(patterns: T) -> Result<Self, regex::Error>
-    where
-        T: IntoIterator,
-        T::Item: AsRef<str>,
-    {
-        let regexes: Result<Vec<_>, _> = patterns
-            .into_iter()
-            .map(|s| Regex::new(s.as_ref()))
-            .collect();
-        Ok(Self::Regex(regexes?))
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct FinderConfig {
-    variable_ctx: CtxContainer,
-    func_ctx: CtxContainer,
-    class_ctx: CtxContainer,
+    variable_ctx: GlobSet,
+    func_ctx: GlobSet,
+    class_ctx: GlobSet,
 }
 
 impl FinderConfig {
     #[must_use]
-    pub fn new(
-        variable_ctx: &[String],
-        func_ctx: &[String],
-        class_ctx: &[String],
-        ctx_matcher_type: &str,
-    ) -> Self {
-        let (variable_ctx, func_ctx, class_ctx) = match ctx_matcher_type.to_lowercase().as_str() {
-            "regex" => (
-                CtxContainer::regex(variable_ctx).unwrap_or_else(|e| {
-                    bail_with!((), "Failed parsing regex due to an error: {}", e);
-                    CtxContainer::exact(variable_ctx)
-                }),
-                CtxContainer::regex(func_ctx).unwrap_or_else(|_| CtxContainer::exact(func_ctx)),
-                CtxContainer::regex(class_ctx).unwrap_or_else(|_| CtxContainer::exact(class_ctx)),
-            ),
-            "contains" => (
-                CtxContainer::contains(variable_ctx),
-                CtxContainer::contains(func_ctx),
-                CtxContainer::contains(class_ctx),
-            ),
-            _ => (
-                CtxContainer::exact(variable_ctx),
-                CtxContainer::exact(func_ctx),
-                CtxContainer::exact(class_ctx),
-            ),
-        };
-
+    pub fn new(variable_ctx: &[String], func_ctx: &[String], class_ctx: &[String]) -> Self {
         Self {
-            variable_ctx,
-            func_ctx,
-            class_ctx,
+            variable_ctx: slice_to_glob(variable_ctx, "variable_contexts"),
+            func_ctx: slice_to_glob(func_ctx, "function_contexts"),
+            class_ctx: slice_to_glob(class_ctx, "class_contexts"),
         }
     }
     pub(crate) fn is_sql_variable_name(&self, name: &str) -> bool {
-        self.variable_ctx.matches(&name.to_lowercase())
+        self.variable_ctx.is_match(name)
     }
 
     pub(crate) fn is_sql_function_name(&self, name: &str) -> bool {
-        self.func_ctx.matches(&name.to_lowercase())
+        self.func_ctx.is_match(name)
     }
 
     pub(crate) fn is_sql_class_name(&self, name: &str) -> bool {
-        self.class_ctx.matches(&name.to_lowercase())
+        self.class_ctx.is_match(name)
     }
+}
+
+fn slice_to_glob(patterns: &[String], log_ctx: &str) -> GlobSet {
+    let valid_globs: Vec<Glob> = patterns
+        .iter()
+        .filter_map(|pattern| match Glob::new(pattern) {
+            Ok(glob) => Some(glob),
+            Err(e) => {
+                always_log!("Failed to parse {log_ctx} glob pattern '{pattern}': {e}");
+                None
+            }
+        })
+        .collect();
+
+    if valid_globs.is_empty() {
+        debug!(
+            "GlobSet for {log_ctx} is empty - no valid patterns found from {} input patterns",
+            patterns.len()
+        );
+    }
+
+    let builder = valid_globs
+        .into_iter()
+        .fold(GlobSetBuilder::new(), |mut builder, glob| {
+            builder.add(glob);
+            builder
+        });
+
+    builder.build().unwrap_or_else(|e| {
+        error!("Failed to build GlobSet for {log_ctx}: {e}");
+        GlobSetBuilder::new().build().unwrap()
+    })
 }
 
 #[derive(Debug, Clone)]

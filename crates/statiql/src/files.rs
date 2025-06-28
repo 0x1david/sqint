@@ -1,7 +1,7 @@
 use crate::config::{Config, DEFAULT_CONFIG_NAME};
+use globset::{Glob, GlobSet, GlobSetBuilder};
 use ignore::WalkBuilder;
-use logging::{always_log, debug, warn};
-use regex::Regex;
+use logging::{always_log, debug, error, warn};
 use std::{path::PathBuf, process::Command};
 
 /// Returns only files that have changed compared to the baseline branch
@@ -204,45 +204,56 @@ pub fn filter_file_pats(
     include_pats: &[String],
     exclude_pats: &[String],
 ) -> Vec<String> {
-    let include_pats: Vec<Regex> = include_pats
-        .iter()
-        .map(|p| Regex::new(p))
-        .filter_map(|r| match r {
-            Ok(regex) => Some(regex),
-            Err(e) => {
-                always_log!("Invalid regex in include_patterns: {e}");
-                None
-            }
-        })
-        .collect();
-
-    let exclude_pats: Vec<Regex> = exclude_pats
-        .iter()
-        .map(|p| Regex::new(p))
-        .filter_map(|r| match r {
-            Ok(regex) => Some(regex),
-            Err(e) => {
-                always_log!("Invalid regex in exclude_patterns: {e}");
-                None
-            }
-        })
-        .collect();
+    let include_pats: GlobSet = slice_to_glob(include_pats, "file_patterns");
+    let exclude_pats: GlobSet = slice_to_glob(exclude_pats, "exclude_patterns");
 
     files
         .into_iter()
-        .filter(|file| {
-            let matches = include_pats.iter().any(|pat| pat.is_match(file));
+        .filter(|f| {
+            let matches = include_pats.is_match(f);
             if !matches {
-                debug!("File '{file}' filtered out by include patterns");
+                debug!("File '{f}' filtered out by include patterns");
             }
             matches
         })
-        .filter(|file| {
-            let excluded = exclude_pats.iter().any(|pat| pat.is_match(file));
+        .filter(|f| {
+            let excluded = exclude_pats.is_match(f);
             if excluded {
-                debug!("File '{file}' filtered out by exclude patterns");
+                debug!("File '{f}' filtered out by exclude patterns");
             }
             !excluded
         })
         .collect()
+}
+
+fn slice_to_glob(patterns: &[String], log_ctx: &str) -> GlobSet {
+    let valid_globs: Vec<Glob> = patterns
+        .iter()
+        .filter_map(|pattern| match Glob::new(pattern) {
+            Ok(glob) => Some(glob),
+            Err(e) => {
+                always_log!("Failed to parse {log_ctx} glob pattern '{pattern}': {e}");
+                None
+            }
+        })
+        .collect();
+
+    if valid_globs.is_empty() {
+        debug!(
+            "GlobSet for {log_ctx} is empty - no valid patterns found from {} input patterns",
+            patterns.len()
+        );
+    }
+
+    let builder = valid_globs
+        .into_iter()
+        .fold(GlobSetBuilder::new(), |mut builder, glob| {
+            builder.add(glob);
+            builder
+        });
+
+    builder.build().unwrap_or_else(|e| {
+        error!("Failed to build GlobSet for {log_ctx}: {e}");
+        GlobSetBuilder::new().build().unwrap()
+    })
 }

@@ -15,7 +15,6 @@ pub struct Config {
     pub variable_contexts: Vec<String>,
     pub function_contexts: Vec<String>,
     pub class_contexts: Vec<String>,
-    pub context_match_mode: String,
     pub min_sql_length: usize,
     pub case_sensitive: bool,
 
@@ -49,22 +48,21 @@ impl Default for Config {
         Self {
             // Detection Settings
             variable_contexts: vec![
-                ".*query.*".to_string(),
-                ".*sql.*".to_string(),
-                ".*statement.*".to_string(),
-                ".*stmt.*".to_string(),
+                "*query*".to_string(),
+                "*sql*".to_string(),
+                "*statement*".to_string(),
+                "*stmt*".to_string(),
             ],
             function_contexts: vec![],
             class_contexts: vec![],
-            context_match_mode: "regex".to_string(),
             min_sql_length: 10,
             case_sensitive: false,
 
             // File Processing
             file_patterns: vec![
-                ".*.py".to_string(),
-                ".*.pyi".to_string(),
-                ".*.ipynb".to_string(),
+                "*.py".to_string(),
+                "*.pyi".to_string(),
+                "*.ipynb".to_string(),
             ],
             exclude_patterns: vec![],
             respect_gitignore: true,
@@ -133,9 +131,6 @@ impl Config {
         }
         if !other.class_contexts.is_empty() {
             self.class_contexts = other.class_contexts;
-        }
-        if other.context_match_mode != "exact" {
-            self.context_match_mode = other.context_match_mode;
         }
         if other.min_sql_length != 10 {
             self.min_sql_length = other.min_sql_length;
