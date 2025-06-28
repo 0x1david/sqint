@@ -386,6 +386,8 @@ name = "logging"
 version = "0.0.0"
 dependencies = [
  "atty",
+ "clap",
+ "serde",
 ]
 
 [[package]]

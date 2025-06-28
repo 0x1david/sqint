@@ -1,3 +1,4 @@
+use logging::LogLevel;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -36,9 +37,7 @@ pub struct Config {
     pub include_staged: bool,
 
     // Output Settings
-    pub verbose: bool,
-    pub quiet: bool,
-    pub debug: bool,
+    pub loglevel: LogLevel,
 
     // SQL Parsing Settings
     pub param_markers: Vec<String>,
@@ -92,9 +91,7 @@ impl Default for Config {
             include_staged: true,
 
             // Output Settings
-            verbose: false,
-            quiet: false,
-            debug: false,
+            loglevel: LogLevel::default(),
 
             // SQL Parsing Settings
             param_markers: vec!["?".to_string()],
@@ -184,6 +181,8 @@ impl Config {
             self.max_threads = other.max_threads;
         }
 
+        self.loglevel = other.loglevel;
+
         // Incremental Mode
         if other.incremental_mode {
             self.incremental_mode = other.incremental_mode;
@@ -193,17 +192,6 @@ impl Config {
         }
         if other.include_staged {
             self.include_staged = other.include_staged;
-        }
-
-        // Output Settings
-        if other.verbose {
-            self.verbose = other.verbose;
-        }
-        if other.quiet {
-            self.quiet = other.quiet;
-        }
-        if other.debug {
-            self.debug = other.debug;
         }
 
         // SQL Parsing Settings

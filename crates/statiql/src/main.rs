@@ -4,21 +4,19 @@ mod cli;
 mod config;
 mod files;
 mod handlers;
-mod logging;
 use clap::Parser;
 use cli::{Cli, Commands};
 use config::{Config, DEFAULT_CONFIG, DEFAULT_CONFIG_NAME};
 use finder::FinderConfig;
-use logging::{LogLevel, Logger};
+use logging::{Logger, always_log, debug, info};
 
 fn main() {
     let cli = Cli::parse();
-
-    setup_logging(&cli);
+    dbg!(&cli);
+    let config = files::load_config(&cli);
+    setup_logging(&cli, &config);
 
     debug!("CLI arguments parsed: {:?}", cli);
-
-    let config = files::load_config(&cli);
 
     debug!("Configuration loaded successfully");
     info!("Starting SQL analysis tool");
@@ -55,15 +53,8 @@ fn main() {
     std::process::exit(exit_code);
 }
 
-fn setup_logging(cli: &Cli) {
-    let lvl = match (cli.debug, cli.verbose, cli.quiet) {
-        (true, _, _) => LogLevel::Debug,
-        (false, true, false) => LogLevel::Info,
-        (false, false, true) => LogLevel::Error,
-        (false, false, false) => LogLevel::Warn,
-        (false, true, true) => unreachable!(),
-    };
-
-    debug!("Logging initialized at level: {:?}", lvl);
-    Logger::init(lvl);
+fn setup_logging(cli: &Cli, cfg: &Config) {
+    let ll = cli.loglevel.unwrap_or(cfg.loglevel);
+    debug!("Logging initialized at level: {:?}", ll);
+    Logger::init(ll);
 }

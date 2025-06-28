@@ -1,6 +1,6 @@
 use crate::config::{Config, DEFAULT_CONFIG_NAME};
 use ignore::WalkBuilder;
-use logging::{always_log, debug, info};
+use logging::{always_log, debug};
 use std::{path::PathBuf, process::Command};
 
 /// Returns only files that have changed compared to the baseline branch
@@ -123,16 +123,12 @@ pub fn load_config(cli: &crate::Cli) -> Config {
 
     Config::from_file(&config_path).map_or_else(
         |e| {
-            info!(
+            always_log!(
                 "No configuration file found at '{}'. Using default configuration.",
                 config_path.display()
             );
-            info!("Config load error: {}", e);
         },
-        |file_config| {
-            info!("Loaded configuration from '{}'.", config_path.display());
-            config.merge_with(file_config);
-        },
+        |file_config| config.merge_with(file_config),
     );
     config
 }

@@ -5,3 +5,5 @@ edition = "2024"
 
 [dependencies]
 atty.workspace = true
+serde.workspace = true
+clap.workspace = true

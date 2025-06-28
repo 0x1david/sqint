@@ -134,7 +134,6 @@ variable_contexts= [
     "csp_sql",
     "customer_ids",
     "backup_name",
-    "idx",
     "dangerous_query"
 ]
 
@@ -187,17 +186,10 @@ min_sql_length = 10
 # Whether contexts (function names, variable names...) are case-sensitive
 case_sensitive = false
 
-# Verbose output will include all levels of information except for debug information
-verbose = false
-
-# Quiet output will ignore 
-quiet = false
-
 # Whether file matching will respect git ignore
 respect_gitignore = false
 
-debug = true
-
+loglevel = "bail"
 
 # =============================================================================
 # INCREMENTAL MODE
@@ -220,5 +212,3 @@ max_threads = 0
 
 # Number of files to process per thread batch
 thread_chunk_size = 1
-
-# TODO: Add log level here
