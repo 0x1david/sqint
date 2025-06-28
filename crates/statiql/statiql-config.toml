@@ -75,3 +75,12 @@ max_threads = 0
 
 # Number of files to process per thread batch
 thread_chunk_size = 1
+
+# Placeholders that will be replaced with values for SQL parsing
+param_markers = [
+    "?",
+]
+# String mappings to fix common SQL dialect differences
+[dialect_mappings]
+"NOTNULL" = "NOT NULL"
+"ISNULL" = "IS NULL"

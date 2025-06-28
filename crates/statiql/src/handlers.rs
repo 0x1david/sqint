@@ -146,7 +146,11 @@ fn process_file(file_path: &str, cfg: Arc<crate::FinderConfig>, app_cfg: &Arc<cr
     let sql_finder = finder::SqlFinder::new(cfg);
     if let Some(sql_extract) = sql_finder.analyze_file(file_path) {
         debug!("Found SQL extracts in {}", file_path);
-        let analyzer = crate::analyzer::SqlAnalyzer::new(&crate::analyzer::SqlDialect::PostgreSQL);
+        let analyzer = crate::analyzer::SqlAnalyzer::new(
+            &crate::analyzer::SqlDialect::PostgreSQL,
+            app_cfg.dialect_mappings.clone(),
+            &app_cfg.param_markers,
+        );
         analyzer.analyze_sql_extract(&sql_extract, app_cfg);
     } else {
         debug!("No SQL found in file: {}", file_path);
@@ -175,7 +179,7 @@ pub fn handle_init() {
             "Configuration file already exists at '{}'. Not overwriting.",
             path.display()
         );
-        info!("Use --force flag to overwrite existing configuration (if implemented)");
+        info!("Use --force/-f flag to overwrite existing configuration.");
         return;
     }
 
@@ -190,7 +194,6 @@ pub fn handle_init() {
                 "Created default configuration file at '{}'.",
                 path.display()
             );
-            info!("You can now customize the configuration to suit your needs");
         }
         Err(e) => {
             error!(

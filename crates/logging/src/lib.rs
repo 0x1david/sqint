@@ -138,6 +138,7 @@ impl Logger {
         HAS_ERROR_OCCURRED.load(Ordering::Relaxed)
     }
 
+    #[must_use]
     pub fn exit_code() -> i32 {
         i32::from(Self::has_error_occurred())
     }

@@ -1,10 +1,11 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use sqlparser::dialect::{GenericDialect, PostgreSqlDialect, SQLiteDialect};
 use sqlparser::parser::{Parser, ParserError};
 
 use finder::{SqlExtract, SqlString};
-use logging::{error, info};
+use logging::{always_log, error, info};
 
 use crate::config::Config;
 
@@ -17,16 +18,29 @@ pub enum SqlDialect {
 
 pub struct SqlAnalyzer {
     dialect: Box<dyn sqlparser::dialect::Dialect>,
+    mappings: HashMap<String, String>,
 }
 
 impl SqlAnalyzer {
-    pub fn new(dialect: &SqlDialect) -> Self {
+    pub fn new(
+        dialect: &SqlDialect,
+        mut dialect_mappings: HashMap<String, String>,
+        placeholders: &[String],
+    ) -> Self {
+        // Solve for how to work with multiple dialects
         let dialect: Box<dyn sqlparser::dialect::Dialect> = match dialect {
             SqlDialect::Generic => Box::new(GenericDialect {}),
             SqlDialect::PostgreSQL => Box::new(PostgreSqlDialect {}),
             SqlDialect::SQLite => Box::new(SQLiteDialect {}),
         };
-        Self { dialect }
+        placeholders.iter().for_each(|p| {
+            dialect_mappings.insert(p.clone(), "PLACEHOLDER".to_string());
+        });
+
+        Self {
+            dialect,
+            mappings: dialect_mappings,
+        }
     }
 
     pub fn analyze_sql_extract(&self, extract: &SqlExtract, cfg: &Arc<Config>) {
@@ -37,7 +51,7 @@ impl SqlAnalyzer {
     }
 
     fn analyze_sql_string(&self, sql_string: &SqlString) {
-        let filled_sql = fill_placeholders(&sql_string.sql_content);
+        let filled_sql = self.fill_placeholders(&sql_string.sql_content);
 
         match Parser::parse_sql(&*self.dialect, &filled_sql) {
             Ok(_) => info!("Valid sql string: `{}`", sql_string.sql_content),
@@ -50,6 +64,14 @@ impl SqlAnalyzer {
                 );
             }
         }
+    }
+
+    // Multipass fill doesnt' seem to induce much of a performance loss on a reasonable scale.
+    // So singlepass is probably not needed for now.
+    fn fill_placeholders(&self, sql: &str) -> String {
+        self.mappings
+            .iter()
+            .fold(sql.to_string(), |acc, (k, v)| acc.replace(k, v))
     }
 }
 
@@ -113,12 +135,4 @@ impl SqlError {
             }
         }
     }
-}
-
-/// Prepare SQL for parsing by replacing placeholders with dummy values
-/// TODO: Config defined list of placeholders and their replacements
-fn fill_placeholders(sql: &str) -> String {
-    sql.replace("{PLACEHOLDER}", "PLACEHOLDER")
-        .replace('?', "'PLACEHOLDER'")
-        .replace("ISNULL", "IS NULL")
 }
