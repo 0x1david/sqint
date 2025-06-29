@@ -13,7 +13,7 @@ use logging::{Logger, always_log, debug, info};
 //TODO: Proper capture of linecols
 //TODO: Other commands?
 //TODO: Get rid of regex
-//TODO: Big Refactor
+//TODO: Big Refactor + Tests + Asserts
 fn main() {
     let cli = Cli::parse();
     let config = files::load_config();
