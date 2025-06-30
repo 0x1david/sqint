@@ -1,6 +1,7 @@
 mod assign;
 mod finder_types;
 mod format;
+mod range;
 mod tests;
 pub use crate::finder_types::{FinderConfig, SqlExtract, SqlString};
 use logging::{bail_with, debug, error, info, warn};
@@ -42,16 +43,17 @@ impl SqlFinder {
             })
             .ok()?;
 
+        let range_map = range::RangeFile::from_src(&source_code);
+
         debug!(
-            "Successfully parsed AST for {}, found {} top-level statements",
-            file_path,
+            "Successfully parsed AST for {file_path}, found {} top-level statements",
             parsed.len()
         );
 
-        let strings = self.analyze_stmts(&parsed);
+        let strings = self.analyze_stmts(&parsed, range_map);
 
         if strings.is_empty() {
-            debug!("No SQL strings found in {}", file_path);
+            debug!("No SQL strings found in {file_path}");
         } else {
             info!("Found {} SQL string(s) in {}", strings.len(), file_path);
             debug!(
@@ -71,7 +73,11 @@ impl SqlFinder {
     }
 
     #[allow(clippy::too_many_lines)]
-    pub(crate) fn analyze_stmts(&self, suite: &ast::Suite) -> Vec<SqlString> {
+    pub(crate) fn analyze_stmts(
+        &self,
+        suite: &ast::Suite,
+        range_file: range::RangeFile,
+    ) -> Vec<SqlString> {
         debug!("Analyzing {} statements", suite.len());
         let mut results = Vec::new();
 

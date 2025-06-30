@@ -68,15 +68,10 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
 
     if config.parallel_processing {
         let max_threads = if config.max_threads == 0 {
-            let available = std::thread::available_parallelism()
+            std::thread::available_parallelism()
                 .map(std::num::NonZero::get)
-                .unwrap_or(5);
-            let calculated = std::cmp::max(1, available - 1);
-            debug!(
-                "Auto-calculated thread count: {} (available: {})",
-                calculated, available
-            );
-            calculated
+                .unwrap_or(5)
+                - 1
         } else {
             debug!("Using configured thread count: {}", config.max_threads);
             config.max_threads
@@ -101,11 +96,11 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
                 debug!("Starting thread {} with {} files", i, chunk_vec.len());
 
                 thread::spawn(move || {
-                    debug!("Thread {} processing files: {:?}", i, chunk_vec);
+                    debug!("Thread {i} processing files: {chunk_vec:?}");
                     for file_path in chunk_vec {
                         process_file(&file_path, cfg.clone(), &app_cfg.clone());
                     }
-                    debug!("Thread {} completed", i);
+                    debug!("Thread {i} completed");
                 })
             })
             .collect();
@@ -113,16 +108,13 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
         let mut failed_threads = 0;
         for (i, handle) in handles.into_iter().enumerate() {
             if let Err(e) = handle.join() {
-                error!("Worker thread {} panicked during processing: {:?}", i, e);
+                error!("Worker thread {i} panicked during processing: {e:?}");
                 failed_threads += 1;
             }
         }
 
         if failed_threads > 0 {
-            warn!(
-                "{} worker threads failed during parallel processing",
-                failed_threads
-            );
+            warn!("{failed_threads} worker threads failed during parallel processing",);
         }
     } else {
         info!("Processing {} files sequentially...", target_files.len());

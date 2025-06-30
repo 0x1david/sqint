@@ -24,7 +24,7 @@ impl SqlAnalyzer {
         mut dialect_mappings: HashMap<String, String>,
         placeholders: &[String],
     ) -> Self {
-        // Solve for how to work with multiple dialects
+        // TODO: Solve for how to work with multiple dialects
         let dialect: Box<dyn sqlparser::dialect::Dialect> = match dialect {
             SqlDialect::Generic => Box::new(GenericDialect {}),
             SqlDialect::PostgreSQL => Box::new(PostgreSqlDialect {}),

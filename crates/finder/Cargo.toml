@@ -9,3 +9,4 @@ regex.workspace = true
 rustpython-parser.workspace = true
 serde.workspace = true
 globset.workspace = true
+rangemap = "1.5.1"
