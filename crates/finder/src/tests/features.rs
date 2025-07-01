@@ -1,8 +1,9 @@
 #[cfg(test)]
-// Ignored test are currently not planned for implem
+// Ignored tests are currently not planned for implem
 mod tests {
 
     use crate::*;
+    use range::RangeFile;
     use rustpython_parser::{
         Parse,
         ast::{self},
@@ -19,19 +20,20 @@ mod tests {
             "execute".to_string(),
             "execute_query".to_string(),
             "query_fun".to_string(),
-            "db.query_fun".to_string(), // Later do class method names dynamically
+            "db.query_fun".to_string(),
             "sql_fun".to_string(),
             "also_query_fun".to_string(),
             "outer_func".to_string(),
         ];
         let class_ctx = vec!["Ok".to_string()];
-        SqlFinder::new(FinderConfig::new(&variable_ctx, &func_ctx, &class_ctx, "exact").into())
+        SqlFinder::new(FinderConfig::new(&variable_ctx, &func_ctx, &class_ctx).into())
     }
 
     fn harness_find(code: &str, expected: Vec<(&str, &str)>, name: &str) {
+        let range_file = RangeFile::from_src(code);
         let parsed = ast::Suite::parse(code, "test.py").expect("Failed to parse");
         let finder = harness_create_test_finder();
-        let contexts = finder.analyze_stmts(&parsed);
+        let contexts = finder.analyze_stmts(&parsed, &range_file);
 
         println!("Parsed contexts: {:?}", contexts);
         println!("Expected contexts: {:?}", expected);

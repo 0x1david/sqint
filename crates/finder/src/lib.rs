@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, clippy::multiple_crate_versions)]
 mod assign;
 mod finder_types;
 mod format;
@@ -23,7 +24,7 @@ impl SqlFinder {
     }
 
     #[must_use]
-    pub fn analyze_file(&self, file_path: &str) -> Option<SqlExtract> {
+    pub fn analyze_file(&mut self, file_path: &str) -> Option<SqlExtract> {
         debug!("Starting analysis of file: {file_path}");
 
         let source_code = fs::read_to_string(file_path)
@@ -43,14 +44,15 @@ impl SqlFinder {
             })
             .ok()?;
 
-        let range_map = range::RangeFile::from_src(&source_code);
+        // Create RangeFile and pass it to analyze_stmts
+        let range_file = range::RangeFile::from_src(&source_code);
 
         debug!(
             "Successfully parsed AST for {file_path}, found {} top-level statements",
             parsed.len()
         );
 
-        let strings = self.analyze_stmts(&parsed, range_map);
+        let strings = self.analyze_stmts(&parsed, &range_file);
 
         if strings.is_empty() {
             debug!("No SQL strings found in {file_path}");
@@ -76,7 +78,7 @@ impl SqlFinder {
     pub(crate) fn analyze_stmts(
         &self,
         suite: &ast::Suite,
-        range_file: range::RangeFile,
+        range_file: &range::RangeFile,
     ) -> Vec<SqlString> {
         debug!("Analyzing {} statements", suite.len());
         let mut results = Vec::new();
@@ -92,11 +94,11 @@ impl SqlFinder {
             let stmt_results = match stmt {
                 ast::Stmt::Assign(a) => {
                     debug!("Processing assignment statement");
-                    self.analyze_assignment(a)
+                    self.analyze_assignment(a, range_file)
                 }
                 ast::Stmt::AnnAssign(a) => {
                     debug!("Processing annotated assignment statement");
-                    self.analyze_annotated_assignment(a)
+                    self.analyze_annotated_assignment(a, range_file)
                 }
                 ast::Stmt::For(f) => {
                     debug!(
@@ -104,7 +106,7 @@ impl SqlFinder {
                         f.body.len(),
                         f.orelse.len()
                     );
-                    self.analyze_body_and_orelse(&f.body, &f.orelse)
+                    self.analyze_body_and_orelse(&f.body, &f.orelse, range_file)
                 }
                 ast::Stmt::AsyncFor(f) => {
                     debug!(
@@ -112,7 +114,7 @@ impl SqlFinder {
                         f.body.len(),
                         f.orelse.len()
                     );
-                    self.analyze_body_and_orelse(&f.body, &f.orelse)
+                    self.analyze_body_and_orelse(&f.body, &f.orelse, range_file)
                 }
                 ast::Stmt::While(f) => {
                     debug!(
@@ -120,7 +122,7 @@ impl SqlFinder {
                         f.body.len(),
                         f.orelse.len()
                     );
-                    self.analyze_body_and_orelse(&f.body, &f.orelse)
+                    self.analyze_body_and_orelse(&f.body, &f.orelse, range_file)
                 }
                 ast::Stmt::If(f) => {
                     debug!(
@@ -128,7 +130,7 @@ impl SqlFinder {
                         f.body.len(),
                         f.orelse.len()
                     );
-                    self.analyze_body_and_orelse(&f.body, &f.orelse)
+                    self.analyze_body_and_orelse(&f.body, &f.orelse, range_file)
                 }
 
                 ast::Stmt::FunctionDef(f) => {
@@ -137,7 +139,7 @@ impl SqlFinder {
                         f.name,
                         f.body.len()
                     );
-                    self.analyze_stmts(&f.body)
+                    self.analyze_stmts(&f.body, range_file)
                 }
                 ast::Stmt::AsyncFunctionDef(f) => {
                     debug!(
@@ -145,7 +147,7 @@ impl SqlFinder {
                         f.name,
                         f.body.len()
                     );
-                    self.analyze_stmts(&f.body)
+                    self.analyze_stmts(&f.body, range_file)
                 }
                 ast::Stmt::ClassDef(f) => {
                     debug!(
@@ -153,21 +155,21 @@ impl SqlFinder {
                         f.name,
                         f.body.len()
                     );
-                    self.analyze_stmts(&f.body)
+                    self.analyze_stmts(&f.body, range_file)
                 }
                 ast::Stmt::With(f) => {
                     debug!(
                         "Processing with statement with {} body statements",
                         f.body.len()
                     );
-                    self.analyze_stmts(&f.body)
+                    self.analyze_stmts(&f.body, range_file)
                 }
                 ast::Stmt::AsyncWith(f) => {
                     debug!(
                         "Processing async with statement with {} body statements",
                         f.body.len()
                     );
-                    self.analyze_stmts(&f.body)
+                    self.analyze_stmts(&f.body, range_file)
                 }
 
                 ast::Stmt::Try(t) => {
@@ -178,7 +180,7 @@ impl SqlFinder {
                         t.orelse.len(),
                         t.finalbody.len()
                     );
-                    self.analyze_try(&t.body, &t.orelse, &t.finalbody, &t.handlers)
+                    self.analyze_try(&t.body, &t.orelse, &t.finalbody, &t.handlers, range_file)
                 }
                 ast::Stmt::TryStar(t) => {
                     debug!(
@@ -188,7 +190,7 @@ impl SqlFinder {
                         t.orelse.len(),
                         t.finalbody.len()
                     );
-                    self.analyze_try(&t.body, &t.orelse, &t.finalbody, &t.handlers)
+                    self.analyze_try(&t.body, &t.orelse, &t.finalbody, &t.handlers, range_file)
                 }
 
                 ast::Stmt::Match(f) => {
@@ -203,14 +205,14 @@ impl SqlFinder {
                                 f.cases.len(),
                                 c.body.len()
                             );
-                            self.analyze_stmts(&c.body)
+                            self.analyze_stmts(&c.body, range_file)
                         })
                         .collect()
                 }
 
                 ast::Stmt::Expr(e) => {
                     debug!("Processing expression statement");
-                    self.analyze_stmt_expr(e)
+                    self.analyze_stmt_expr(e, range_file)
                 }
 
                 ast::Stmt::Return(_) => {
@@ -267,6 +269,7 @@ impl SqlFinder {
         &self,
         body: &Vec<ast::Stmt>,
         orelse: &Vec<ast::Stmt>,
+        range_file: &range::RangeFile,
     ) -> Vec<SqlString> {
         debug!(
             "Analyzing body ({} stmts) and orelse ({} stmts)",
@@ -274,8 +277,8 @@ impl SqlFinder {
             orelse.len()
         );
 
-        let body_results = self.analyze_stmts(body);
-        let orelse_results = self.analyze_stmts(orelse);
+        let body_results = self.analyze_stmts(body, range_file);
+        let orelse_results = self.analyze_stmts(orelse, range_file);
 
         debug!(
             "Body yielded {} SQL strings, orelse yielded {} SQL strings",
@@ -292,6 +295,7 @@ impl SqlFinder {
         orelse: &Vec<ast::Stmt>,
         finalbody: &Vec<ast::Stmt>,
         handlers: &[ast::ExceptHandler],
+        range_file: &range::RangeFile,
     ) -> Vec<SqlString> {
         debug!(
             "Analyzing try block: {} body, {} handlers, {} orelse, {} finally statements",
@@ -301,7 +305,7 @@ impl SqlFinder {
             finalbody.len()
         );
 
-        let body_results = self.analyze_stmts(body);
+        let body_results = self.analyze_stmts(body, range_file);
         debug!("Try body yielded {} SQL strings", body_results.len());
 
         let handler_results: Vec<SqlString> = handlers
@@ -320,7 +324,7 @@ impl SqlFinder {
                             handlers.len(),
                             eh.body.len()
                         );
-                        Some(self.analyze_stmts(&eh.body))
+                        Some(self.analyze_stmts(&eh.body, range_file))
                     },
                 )
             })
@@ -331,10 +335,10 @@ impl SqlFinder {
             handler_results.len()
         );
 
-        let orelse_results = self.analyze_stmts(orelse);
+        let orelse_results = self.analyze_stmts(orelse, range_file);
         debug!("Try orelse yielded {} SQL strings", orelse_results.len());
 
-        let finally_results = self.analyze_stmts(finalbody);
+        let finally_results = self.analyze_stmts(finalbody, range_file);
         debug!("Try finally yielded {} SQL strings", finally_results.len());
 
         body_results

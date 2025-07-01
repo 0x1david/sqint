@@ -135,7 +135,7 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
 fn process_file(file_path: &str, cfg: Arc<crate::FinderConfig>, app_cfg: &Arc<crate::Config>) {
     debug!("Starting analysis of file: {}", file_path);
 
-    let sql_finder = finder::SqlFinder::new(cfg);
+    let mut sql_finder = finder::SqlFinder::new(cfg);
     if let Some(sql_extract) = sql_finder.analyze_file(file_path) {
         debug!("Found SQL extracts in {}", file_path);
         let analyzer = crate::analyzer::SqlAnalyzer::new(

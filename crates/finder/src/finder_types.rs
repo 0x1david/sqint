@@ -4,25 +4,14 @@ use std::ops::{Add, Div, Mul, Sub};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use logging::{always_log, debug, error};
 
+use crate::range::ByteRange;
+
 // Internal result type for processing
 #[derive(Debug, Clone)]
 pub struct SqlResult {
-    pub byte_offset: usize,
+    pub byte_range: ByteRange,
     pub variable_name: String,
     pub content: FinderType,
-}
-
-impl SqlResult {
-    pub fn into_sql_string(self) -> Option<SqlString> {
-        match self.content {
-            FinderType::Str(sql_content) => Some(SqlString {
-                byte_offset: self.byte_offset,
-                variable_name: self.variable_name,
-                sql_content,
-            }),
-            _ => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -34,9 +23,9 @@ pub struct SqlExtract {
 /// Represents a detected SQL variable
 #[derive(Debug, Clone)]
 pub struct SqlString {
-    pub byte_offset: usize,
     pub variable_name: String,
     pub sql_content: String,
+    pub range: crate::range::Range,
 }
 
 #[derive(Debug, Clone)]

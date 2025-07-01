@@ -10,9 +10,9 @@ use config::{Config, DEFAULT_CONFIG, DEFAULT_CONFIG_NAME};
 use finder::FinderConfig;
 use logging::{Logger, always_log, debug, info};
 
-//TODO: Proper capture of linecols
-//TODO: Other commands?
+//TODO: Function Arguments processing
 //TODO: Get rid of regex
+//TODO: Other commands?
 //TODO: Big Refactor + Tests + Asserts
 fn main() {
     let cli = Cli::parse();

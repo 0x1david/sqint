@@ -44,17 +44,19 @@ impl SqlAnalyzer {
         extract
             .strings
             .iter()
-            .for_each(|sql_string| self.analyze_sql_string(sql_string));
+            .for_each(|sql_string| self.analyze_sql_string(sql_string, &extract.file_path));
     }
 
-    fn analyze_sql_string(&self, sql_string: &SqlString) {
+    fn analyze_sql_string(&self, sql_string: &SqlString, filename: &str) {
         let filled_sql = self.fill_placeholders(&sql_string.sql_content);
 
         match Parser::parse_sql(&*self.dialect, &filled_sql) {
             Ok(_) => info!("Valid sql string: `{}`", sql_string.sql_content),
             Err(e) => {
                 error!(
-                    "Invalid sql literal `{}`: `{}` => {}",
+                    "Invalid sql literal in {} at {} `{}`: `{}` => {}",
+                    filename,
+                    sql_string.range.start,
                     sql_string.variable_name,
                     sql_string.sql_content,
                     SqlError::from_parser_error(e).reason

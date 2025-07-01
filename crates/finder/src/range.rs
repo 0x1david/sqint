@@ -1,21 +1,43 @@
-use rangemap::RangeMap;
+use std::fmt::Display;
 
-struct LineCol {
+use rangemap::RangeMap;
+use rustpython_parser::text_size::TextRange;
+
+#[derive(Debug, Clone)]
+pub struct LineCol {
     line: usize,
     col: usize,
     byte_offset: usize,
 }
 
-struct Range {
-    start: LineCol,
+impl Display for LineCol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "line {}, column {}", self.line, self.col)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Range {
+    pub start: LineCol,
     end: LineCol,
 }
 
-struct ByteRange {
+#[derive(Debug, Clone)]
+pub struct ByteRange {
     start: usize,
     end: usize,
 }
 
+impl From<TextRange> for ByteRange {
+    fn from(value: TextRange) -> Self {
+        Self {
+            start: value.start().to_usize(),
+            end: value.end().to_usize(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct RangeFile<'a> {
     // Maps a byte range to the line number.
     map: RangeMap<usize, usize>,
@@ -29,13 +51,13 @@ impl<'a> RangeFile<'a> {
         let mut last_line_start = 0;
         for (offset, ch) in src.char_indices() {
             if ch == '\n' {
-                range_map.insert(last_line_start..offset, line);
+                range_map.insert(last_line_start..(offset + 1), line);
                 line += 1;
                 last_line_start = offset + 1;
             }
         }
 
-        range_map.insert(last_line_start..src.len(), line);
+        range_map.insert(last_line_start..src.len() + 1, line);
 
         Self {
             map: range_map,
@@ -56,7 +78,7 @@ impl<'a> RangeFile<'a> {
         }
     }
 
-    pub fn range_to_linecols(&self, byte_range: ByteRange) -> Range {
+    pub fn byterange_to_range(&self, byte_range: ByteRange) -> Range {
         let (start_line_byte_range, start_line_number) = self
             .map
             .get_key_value(&byte_range.start)

@@ -1,10 +1,11 @@
 #![allow(clippy::needless_collect, clippy::single_match_else)]
 use crate::finder_types::{FinderType, SqlResult};
 use crate::format::format_python_string;
+use crate::range::RangeFile;
 use crate::{SqlFinder, SqlString};
 use logging::{bail, bail_with, debug, warn};
 use regex::Regex;
-use rustpython_parser::ast::Operator;
+use rustpython_parser::ast::{Operator, Ranged};
 use rustpython_parser::{
     ast::{self, Identifier},
     text_size::TextRange,
@@ -12,7 +13,7 @@ use rustpython_parser::{
 
 // Public API
 impl SqlFinder {
-    pub(super) fn analyze_assignment(&self, assign: &ast::StmtAssign) -> Vec<SqlString> {
+    pub(super) fn analyze_assignment(&self, assign: &ast::StmtAssign, range_file: &RangeFile) -> Vec<SqlString> {
         debug!("Analyzing assignment with {} targets", assign.targets.len());
         
         let mut results = vec![];
@@ -20,29 +21,18 @@ impl SqlFinder {
             debug!("Processing assignment target {}/{}: {:?}", 
                    i + 1, assign.targets.len(), std::mem::discriminant(target));
             
-            let sql_results = self.process_assignment_target(
-                target,
-                &assign.value,
-                assign.range.start().to_usize(),
-            );
+            let sql_results = self.process_assignment_target(target, &assign.value);
             
             debug!("Assignment target {} yielded {} SQL results", i + 1, sql_results.len());
             
             let sql_strings: Vec<SqlString> = sql_results
                 .into_iter()
-                .filter_map(|result| {
-                    match result.into_sql_string() {
-                        Some(sql_string) => {
+                .map(|result| {
+                    let sql_string = sql_result_to_string(result, range_file);
                             debug!("Converted SQL result to string: variable='{}', content preview='{}'", 
                                    sql_string.variable_name, 
                                    &sql_string.sql_content[..sql_string.sql_content.len().min(50)]);
-                            Some(sql_string)
-                        }
-                        None => {
-                            debug!("SQL result did not convert to valid SQL string");
-                            None
-                        }
-                    }
+                            sql_string
                 })
                 .collect();
             
@@ -53,27 +43,20 @@ impl SqlFinder {
         results
     }
 
-    pub(super) fn analyze_stmt_expr(&self, e: &ast::StmtExpr) -> Vec<SqlString> {
+    pub(super) fn analyze_stmt_expr(&self, e: &ast::StmtExpr, range_file: &RangeFile) -> Vec<SqlString> {
         debug!("Analyzing expression statement");
         
-        let results = self.process_expr_stmt(&e.value, e.range.start().to_usize());
+        let results = self.process_expr_stmt(&e.value);
         debug!("Expression statement yielded {} SQL results", results.len());
         
         let sql_strings: Vec<SqlString> = results
             .into_iter()
-            .filter_map(|result| {
-                match result.into_sql_string() {
-                    Some(sql_string) => {
+            .map(|result| {
+                let sql_string = sql_result_to_string(result, range_file);
                         debug!("Expression converted to SQL string: variable='{}', content preview='{}'", 
                                sql_string.variable_name, 
                                &sql_string.sql_content[..sql_string.sql_content.len().min(50)]);
-                        Some(sql_string)
-                    }
-                    None => {
-                        debug!("Expression result did not convert to valid SQL string");
-                        None
-                    }
-                }
+                        sql_string
             })
             .collect();
         
@@ -84,35 +67,25 @@ impl SqlFinder {
     pub(super) fn analyze_annotated_assignment(
         &self,
         assign: &ast::StmtAnnAssign,
+        range_file: &RangeFile
     ) -> Vec<SqlString> {
         debug!("Analyzing annotated assignment");
         
         let mut results = vec![];
         if let Some(val) = &assign.value {
             debug!("Annotated assignment has value, processing...");
-            let sql_results = self.process_assignment_target(
-                &assign.target,
-                val,
-                assign.range.start().to_usize(),
-            );
+            let sql_results = self.process_assignment_target(&assign.target, val);
             
             debug!("Annotated assignment yielded {} SQL results", sql_results.len());
             
             let sql_strings: Vec<SqlString> = sql_results
                 .into_iter()
-                .filter_map(|result| {
-                    match result.into_sql_string() {
-                        Some(sql_string) => {
-                            debug!("Annotated assignment converted to SQL string: variable='{}', content preview='{}'", 
-                                   sql_string.variable_name, 
-                                   &sql_string.sql_content[..sql_string.sql_content.len().min(50)]);
-                            Some(sql_string)
-                        }
-                        None => {
-                            debug!("Annotated assignment result did not convert to valid SQL string");
-                            None
-                        }
-                    }
+                .map(|result| {
+                    let sql_string = sql_result_to_string(result, range_file);
+                    debug!("Annotated assignment converted to SQL string: variable='{}', content preview='{}'", 
+                           sql_string.variable_name, 
+                           &sql_string.sql_content[..sql_string.sql_content.len().min(50)]);
+                    sql_string
                 })
                 .collect();
             
@@ -128,18 +101,16 @@ impl SqlFinder {
 
 // Internal processing
 impl SqlFinder {
-    fn process_expr_stmt(&self, value: &ast::Expr, byte_offset: usize) -> Vec<SqlResult> {
-        debug!("Processing expression statement at byte offset {}", byte_offset);
-        
+    fn process_expr_stmt(&self, value: &ast::Expr) -> Vec<SqlResult> {
         match value {
             ast::Expr::Call(call) => {
                 debug!("Expression is a function call");
-                self.process_call_expr(call, byte_offset)
+                self.process_call_expr(call)
             },
             ast::Expr::Attribute(_) => match value {
                 ast::Expr::Call(call) => {
                     debug!("Expression is an attribute that's also a call");
-                    self.process_call_expr(call, byte_offset)
+                    self.process_call_expr(call)
                 },
                 _ => bail_with!(vec![], "Unhandled expr_stmt value pattern: {:?}", value),
             },
@@ -153,7 +124,7 @@ impl SqlFinder {
         }
     }
 
-    fn process_call_expr(&self, call: &ast::ExprCall, byte_offset: usize) -> Vec<SqlResult> {
+    fn process_call_expr(&self, call: &ast::ExprCall) -> Vec<SqlResult> {
         let function_name = Self::extract_function_name(&call.func);
         debug!("Processing call to function: '{}'", function_name);
 
@@ -177,7 +148,7 @@ impl SqlFinder {
                     debug!("Keyword argument {}: name='{}'", i + 1, arg_name);
                     if self.config.is_sql_class_name(arg_name) {
                         debug!("Keyword '{}' matches SQL class name, extracting content", arg_name);
-                        self.extract_content_flattened(&keyword.value, &function_name, byte_offset)
+                        self.extract_content_flattened(&keyword.value, &function_name)
                     } else {
                         debug!("Keyword '{}' does not match SQL class name, skipping", arg_name);
                         vec![]
@@ -194,7 +165,7 @@ impl SqlFinder {
             .enumerate()
             .flat_map(|(i, arg)| {
                 debug!("Processing positional argument {}/{}", i + 1, call.args.len());
-                self.extract_content_flattened(arg, &function_name, byte_offset)
+                self.extract_content_flattened(arg, &function_name)
             })
             .collect();
 
@@ -210,10 +181,9 @@ impl SqlFinder {
         &self,
         expr: &ast::Expr,
         variable_name: &str,
-        byte_offset: usize,
     ) -> Vec<SqlResult> {
-        debug!("Extracting content from expression for variable '{}' at offset {}", 
-               variable_name, byte_offset);
+        debug!("Extracting content from expression for variable '{}' at range {:?}", 
+               variable_name, expr.range());
         
         match expr {
             ast::Expr::List(ast::ExprList { elts, .. }) => {
@@ -222,7 +192,7 @@ impl SqlFinder {
                     .enumerate()
                     .flat_map(|(i, elem)| {
                         debug!("Processing list element {}/{}", i + 1, elts.len());
-                        self.extract_content_flattened(elem, variable_name, byte_offset)
+                        self.extract_content_flattened(elem, variable_name)
                     })
                     .collect()
             },
@@ -232,7 +202,7 @@ impl SqlFinder {
                     .enumerate()
                     .flat_map(|(i, elem)| {
                         debug!("Processing tuple element {}/{}", i + 1, elts.len());
-                        self.extract_content_flattened(elem, variable_name, byte_offset)
+                        self.extract_content_flattened(elem, variable_name)
                     })
                     .collect()
             },
@@ -243,7 +213,7 @@ impl SqlFinder {
                     .enumerate()
                     .flat_map(|(i, elem)| {
                         debug!("Processing dict value {}/{}", i + 1, values.len());
-                        self.extract_content_flattened(elem, variable_name, byte_offset)
+                        self.extract_content_flattened(elem, variable_name)
                     })
                     .collect()
             },
@@ -253,7 +223,7 @@ impl SqlFinder {
                     .enumerate()
                     .flat_map(|(i, elem)| {
                         debug!("Processing bool op value {}/{}", i + 1, values.len());
-                        self.extract_content_flattened(elem, variable_name, byte_offset)
+                        self.extract_content_flattened(elem, variable_name)
                     })
                     .collect()
             },
@@ -275,7 +245,7 @@ impl SqlFinder {
                             debug!("Binary operation yielded content: '{}'", 
                                    &content.to_string()[..content.to_string().len().min(50)]);
                             vec![SqlResult {
-                                byte_offset,
+                                byte_range: expr.range().into(),
                                 variable_name: variable_name.to_string(),
                                 content,
                             }]
@@ -294,7 +264,7 @@ impl SqlFinder {
                         debug!("Direct content extraction succeeded: '{}'", 
                                &content.to_string()[..content.to_string().len().min(50)]);
                         vec![SqlResult {
-                            byte_offset,
+                            byte_range: expr.range().into(),
                             variable_name: variable_name.to_string(),
                             content,
                         }]
@@ -308,26 +278,25 @@ impl SqlFinder {
         &self,
         target: &ast::Expr,
         value: &ast::Expr,
-        byte_offset: usize,
     ) -> Vec<SqlResult> {
-        debug!("Processing assignment target at byte offset {}", byte_offset);
+        debug!("Processing assignment target at range {:?}", target.range());
         
         match target {
             ast::Expr::Name(name) => {
                 debug!("Assignment target is a name: '{}'", name.id);
-                self.process_by_ident(&name.id, value, byte_offset)
+                self.process_by_ident(&name.id, value)
             },
             ast::Expr::Attribute(att) => {
                 debug!("Assignment target is an attribute: '{}'", att.attr);
-                self.process_by_ident(&att.attr, value, byte_offset)
+                self.process_by_ident(&att.attr, value)
             },
             ast::Expr::Tuple(tuple) => {
                 debug!("Assignment target is a tuple with {} elements", tuple.elts.len());
-                self.handle_tuple_assignment(&tuple.elts, value, byte_offset)
+                self.handle_tuple_assignment(&tuple.elts, value)
             },
             ast::Expr::List(list) => {
                 debug!("Assignment target is a list with {} elements", list.elts.len());
-                self.handle_tuple_assignment(&list.elts, value, byte_offset)
+                self.handle_tuple_assignment(&list.elts, value)
             },
             ast::Expr::Subscript(_) => {
                 debug!("Assignment target is a subscript (hashmap access), skipping");
@@ -343,13 +312,12 @@ impl SqlFinder {
         &self,
         name: &Identifier,
         value: &ast::Expr,
-        byte_offset: usize,
     ) -> Vec<SqlResult> {
         debug!("Processing identifier assignment: '{}'", name);
         
         if self.config.is_sql_variable_name(name) {
             debug!("Identifier '{}' matches SQL variable name, extracting content", name);
-            return self.extract_content_flattened(value, name, byte_offset);
+            return self.extract_content_flattened(value, name);
         }
         
         debug!("Identifier '{}' does not match SQL variable name, skipping", name);
@@ -360,7 +328,6 @@ impl SqlFinder {
         &self,
         targets: &[ast::Expr],
         value: &ast::Expr,
-        byte_offset: usize,
     ) -> Vec<SqlResult> {
         debug!("Handling tuple assignment with {} targets", targets.len());
         
@@ -378,11 +345,11 @@ impl SqlFinder {
         match value {
             ast::Expr::Tuple(tuple_value) => {
                 debug!("Tuple assignment value is also a tuple with {} elements", tuple_value.elts.len());
-                self.process_paired_assignments(targets, &tuple_value.elts, byte_offset)
+                self.process_paired_assignments(targets, &tuple_value.elts)
             },
             ast::Expr::List(list_value) => {
                 debug!("Tuple assignment value is a list with {} elements", list_value.elts.len());
-                self.process_paired_assignments(targets, &list_value.elts, byte_offset)
+                self.process_paired_assignments(targets, &list_value.elts)
             },
             _ => {
                 bail_with!(vec![], "Unhandled tuple assignment value: {:?}", value)
@@ -394,7 +361,6 @@ impl SqlFinder {
         &self,
         targets: &[ast::Expr],
         values: &[ast::Expr],
-        byte_offset: usize,
     ) -> Vec<SqlResult> {
         debug!("Processing paired assignments: {} targets, {} values", targets.len(), values.len());
         
@@ -419,7 +385,7 @@ impl SqlFinder {
                     ctx: ast::ExprContext::Load,
                 });
                 let target_results =
-                    self.process_assignment_target(starred_target, &new_list_expr, byte_offset);
+                    self.process_assignment_target(starred_target, &new_list_expr);
                     
                 debug!("Starred target yielded {} results", target_results.len());
                 results.extend(target_results);
@@ -427,7 +393,7 @@ impl SqlFinder {
             } else {
                 debug!("Processing regular target with value at index {}", value_idx);
                 let target_results =
-                    self.process_assignment_target(target, &values[value_idx], byte_offset);
+                    self.process_assignment_target(target, &values[value_idx]);
                     
                 debug!("Regular target yielded {} results", target_results.len());
                 results.extend(target_results);
@@ -866,5 +832,13 @@ impl SqlFinder {
         
         debug!("Constant extraction complete");
         result
+    }
+}
+
+fn sql_result_to_string(res: SqlResult, range_file: &RangeFile) -> SqlString {
+    SqlString {
+        variable_name: res.variable_name,
+        range: range_file.byterange_to_range(res.byte_range),
+        sql_content: res.content.to_string()
     }
 }
