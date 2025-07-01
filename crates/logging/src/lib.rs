@@ -164,6 +164,14 @@ macro_rules! always_log {
 }
 
 #[macro_export]
+macro_rules! return_log {
+    ($fmt:expr $(, $($arg:tt)*)?) => {
+        $crate::log!($crate::LogLevel::Always, $fmt $(, $($arg)*)?);
+        return
+    };
+}
+
+#[macro_export]
 macro_rules! error {
     ($fmt:expr $(, $($arg:tt)*)?) => {
         $crate::log!($crate::LogLevel::Error, $fmt $(, $($arg)*)?)

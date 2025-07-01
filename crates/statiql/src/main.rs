@@ -8,7 +8,7 @@ use clap::Parser;
 use cli::{Cli, Commands};
 use config::{Config, DEFAULT_CONFIG, DEFAULT_CONFIG_NAME};
 use finder::FinderConfig;
-use logging::{Logger, always_log, debug, info};
+use logging::{Logger, always_log, debug};
 
 //TODO: Function Arguments processing
 //TODO: Get rid of regex
@@ -20,9 +20,7 @@ fn main() {
     setup_logging(&cli, &config);
 
     debug!("CLI arguments parsed: {:?}", cli);
-
     debug!("Configuration loaded successfully");
-    info!("Starting SQL analysis tool");
 
     match cli.command {
         None => {
@@ -33,11 +31,9 @@ fn main() {
             debug!("Processing command: {:?}", comm);
             match comm {
                 Commands::Check(_) => {
-                    debug!("Executing check command");
                     handlers::handle_check(&config.into(), &cli);
                 }
                 Commands::Init(_) => {
-                    debug!("Executing init command");
                     handlers::handle_init();
                 }
             }
@@ -45,8 +41,6 @@ fn main() {
     }
 
     let exit_code = Logger::exit_code();
-    debug!("Exiting with code: {}", exit_code);
-
     if exit_code != 0 {
         always_log!("Analysis completed with errors.");
     } else {

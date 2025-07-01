@@ -5,22 +5,18 @@ use logging::{always_log, debug, error, warn};
 use std::{path::PathBuf, process::Command};
 
 /// Returns only files that have changed compared to the baseline branch
-pub fn filter_incremental_files(
-    files: &[String],
-    incr_mode: bool,
-    incl_staged: bool,
-    base_branch: &str,
-) -> Vec<String> {
-    if !incr_mode {
+pub fn filter_incremental_files(files: &[String], cfg: &Config) -> Vec<String> {
+    if !cfg.incremental_mode {
         return files.to_vec();
     }
 
-    let changed_files = get_changed_files(base_branch, incl_staged).unwrap_or_else(|| {
-        always_log!(
-            "Git operations failed. Running in non-incremental mode - processing all files."
-        );
-        files.to_vec()
-    });
+    let changed_files =
+        get_changed_files(&cfg.baseline_branch, cfg.include_staged).unwrap_or_else(|_| {
+            always_log!(
+                "Git operations failed. Running in non-incremental mode - processing all files."
+            );
+            files.to_vec()
+        });
 
     let filtered_files: Vec<String> = files
         .iter()
@@ -34,13 +30,8 @@ pub fn filter_incremental_files(
 
     if filtered_files.is_empty() && !files.is_empty() {
         always_log!(
-            "No changed files found. All files are up-to-date with baseline branch '{base_branch}'.",
-        );
-    } else if filtered_files.len() < files.len() {
-        always_log!(
-            "Processing {} changed files out of {} total files.",
-            filtered_files.len(),
-            files.len()
+            "No changed files found. All files are up-to-date with baseline branch '{}'.",
+            cfg.baseline_branch
         );
     }
 
@@ -48,70 +39,56 @@ pub fn filter_incremental_files(
 }
 
 /// Get files that have changed compared to the baseline branch
-fn get_changed_files(base_branch: &str, incl_staged: bool) -> Option<Vec<String>> {
-    let mut changed_files = vec![];
-
+fn get_changed_files(base_branch: &str, incl_staged: bool) -> Result<Vec<String>, String> {
     let committed_output = Command::new("git")
         .args(["diff", "--name-only", base_branch])
         .output()
         .map_err(|e| {
-            always_log!("Failed to run git diff against '{base_branch}': {e}. Ensure git is installed and you're in a git repository.");
-        })
-        .ok()?;
-
+            format!("Failed to run git diff against '{base_branch}': {e}. Ensure git is installed and you're in a git repository.")
+        })?;
     if !committed_output.status.success() {
-        always_log!(
+        Err(format!(
             "Git diff command failed: {}. Ensure '{base_branch}' is a valid branch/commit.",
             String::from_utf8_lossy(&committed_output.stderr).trim(),
-        );
-        return None;
+        ))?;
     }
 
-    let committed_files = String::from_utf8_lossy(&committed_output.stdout);
-    for file in committed_files.lines() {
-        if !file.trim().is_empty() {
-            changed_files.push(file.trim().to_string());
-        }
-    }
+    let mut all_files: Vec<String> = String::from_utf8_lossy(&committed_output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(std::string::ToString::to_string)
+        .collect();
 
     if incl_staged {
         let staged_output = Command::new("git")
             .args(["diff", "--name-only", "--cached"])
             .output()
-            .map_err(|e| {
-                always_log!("Failed to run git diff --cached: {}", e);
-            })
-            .ok()?;
-
+            .map_err(|e| format!("Failed to run git diff --cached: {e}"))?;
         if !staged_output.status.success() {
-            always_log!(
+            Err(format!(
                 "Git diff --cached failed: {}",
                 String::from_utf8_lossy(&staged_output.stderr).trim()
-            );
-            return None;
+            ))?;
         }
-
-        let staged_files = String::from_utf8_lossy(&staged_output.stdout);
-        for file in staged_files.lines() {
-            if !file.trim().is_empty() {
-                changed_files.push(file.trim().to_string());
-            }
-        }
+        let staged_files: Vec<String> = String::from_utf8_lossy(&staged_output.stdout)
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .map(std::string::ToString::to_string)
+            .collect();
+        all_files.extend(staged_files);
     }
 
-    let mut absolute_changed_files = vec![];
-    for file in changed_files {
-        if let Ok(absolute_path) = std::fs::canonicalize(&file) {
-            if let Some(path_str) = absolute_path.to_str() {
-                absolute_changed_files.push(path_str.to_string());
-            }
-        } else {
-            // If canonicalize fails, keep the original path - this might happen for deleted files
-            absolute_changed_files.push(file);
-        }
-    }
-
-    Some(absolute_changed_files)
+    Ok(all_files
+        .into_iter()
+        .map(|file| {
+            std::fs::canonicalize(&file)
+                .ok()
+                .and_then(|path| path.to_str().map(std::string::ToString::to_string))
+                .unwrap_or(file)
+        })
+        .collect())
 }
 
 pub fn load_config() -> Config {
@@ -134,13 +111,7 @@ pub fn load_config() -> Config {
 
 #[must_use]
 #[allow(clippy::fn_params_excessive_bools)]
-pub fn collect_files(
-    paths: &[PathBuf],
-    respect_gitignore: bool,
-    respect_global_gitignore: bool,
-    respect_git_exclude: bool,
-    include_hidden: bool,
-) -> (Vec<PathBuf>, Vec<PathBuf>) {
+pub fn collect_files(paths: &[PathBuf], cfg: &Config) -> (Vec<PathBuf>, Vec<PathBuf>) {
     let mut files = Vec::new();
     let mut explicits = Vec::new();
 
@@ -149,27 +120,21 @@ pub fn collect_files(
             debug!("Found explicit file {}", path.display());
             explicits.push(path.clone());
         } else if path.is_dir() {
-            let builder = WalkBuilder::new(path)
-                .git_ignore(respect_gitignore)
-                .git_global(respect_global_gitignore)
-                .git_exclude(respect_git_exclude)
-                .hidden(!include_hidden)
-                .build();
-
-            for res in builder {
-                match res {
-                    Ok(entry) => {
-                        let entry_path = entry.path();
-                        if entry.file_type().is_some_and(|ft| ft.is_file()) {
-                            debug!("Found file {}", entry_path.display());
-                            files.push(entry_path.to_path_buf());
-                        }
-                    }
-                    Err(e) => {
-                        always_log!("Failed to read directory entry: {}", e);
-                    }
-                }
-            }
+            WalkBuilder::new(path)
+                .git_ignore(cfg.respect_gitignore)
+                .git_global(cfg.respect_global_gitignore)
+                .git_exclude(cfg.respect_git_exclude)
+                .hidden(!cfg.include_hidden_files)
+                .build()
+                .filter_map(|found_path| {
+                    found_path
+                        .map_err(|e| always_log!("Failed to read directory entry: {}", e))
+                        .ok()
+                })
+                .filter(|entry| entry.file_type().is_some_and(|ft| ft.is_file()))
+                .for_each(|entry| {
+                    files.push(entry.path().to_path_buf());
+                });
         }
     }
 
@@ -179,79 +144,46 @@ pub fn collect_files(
 pub fn canonicalize_files(files: Vec<std::path::PathBuf>) -> Vec<String> {
     files
         .into_iter()
-        .filter_map(|f| match std::fs::canonicalize(&f) {
-            Ok(canonical_path) => {
-                debug!(
-                    "Canonicalized path: {} -> {}",
-                    f.display(),
-                    canonical_path.display()
-                );
-                Some(canonical_path)
-            }
-            Err(e) => {
-                warn!("Failed to canonicalize path '{}': {e}", f.display());
-                None
-            }
+        .filter_map(|f| {
+            std::fs::canonicalize(&f)
+                .map_err(|e| warn!("Failed to canonicalize path '{}': {e}", f.display()))
+                .ok()
         })
         .map(|f| f.to_string_lossy().to_string())
         .collect()
 }
 
-pub fn filter_file_pats(
-    files: Vec<String>,
-    include_pats: &[String],
-    exclude_pats: &[String],
-) -> Vec<String> {
-    let include_pats: GlobSet = slice_to_glob(include_pats, "file_patterns");
-    let exclude_pats: GlobSet = slice_to_glob(exclude_pats, "exclude_patterns");
+pub fn filter_file_pats(files: Vec<String>, cfg: &Config) -> Vec<String> {
+    let include_pats: GlobSet = slice_to_glob(&cfg.file_patterns, "file_patterns");
+    let exclude_pats: GlobSet = slice_to_glob(&cfg.exclude_patterns, "exclude_patterns");
 
     files
         .into_iter()
         .filter(|f| {
-            let matches = include_pats.is_match(f);
-            if !matches {
-                debug!("File '{f}' filtered out by include patterns");
+            if !include_pats.is_match(f) || exclude_pats.is_match(f) {
+                debug!("File '{f}' filtered out by include/exclude patterns");
+                return false;
             }
-            matches
-        })
-        .filter(|f| {
-            let excluded = exclude_pats.is_match(f);
-            if excluded {
-                debug!("File '{f}' filtered out by exclude patterns");
-            }
-            !excluded
+            true
         })
         .collect()
 }
 
 fn slice_to_glob(patterns: &[String], log_ctx: &str) -> GlobSet {
-    let valid_globs: Vec<Glob> = patterns
+    patterns
         .iter()
-        .filter_map(|pattern| match Glob::new(pattern) {
-            Ok(glob) => Some(glob),
-            Err(e) => {
-                always_log!("Failed to parse {log_ctx} glob pattern '{pattern}': {e}");
-                None
-            }
+        .filter_map(|p| {
+            Glob::new(p)
+                .map_err(|e| always_log!("Failed to parse {log_ctx} glob pattern '{p}': {e}"))
+                .ok()
         })
-        .collect();
-
-    if valid_globs.is_empty() {
-        debug!(
-            "GlobSet for {log_ctx} is empty - no valid patterns found from {} input patterns",
-            patterns.len()
-        );
-    }
-
-    let builder = valid_globs
-        .into_iter()
-        .fold(GlobSetBuilder::new(), |mut builder, glob| {
-            builder.add(glob);
-            builder
-        });
-
-    builder.build().unwrap_or_else(|e| {
-        error!("Failed to build GlobSet for {log_ctx}: {e}");
-        GlobSetBuilder::new().build().unwrap()
-    })
+        .fold(GlobSetBuilder::new(), |mut b, g| {
+            b.add(g);
+            b
+        })
+        .build()
+        .unwrap_or_else(|e| {
+            error!("Failed to build GlobSet for {log_ctx}: {e}");
+            GlobSetBuilder::new().build().unwrap()
+        })
 }
