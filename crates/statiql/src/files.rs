@@ -34,8 +34,7 @@ pub fn filter_incremental_files(
 
     if filtered_files.is_empty() && !files.is_empty() {
         always_log!(
-            "No changed files found. All files are up-to-date with baseline branch '{}'.",
-            base_branch,
+            "No changed files found. All files are up-to-date with baseline branch '{base_branch}'.",
         );
     } else if filtered_files.len() < files.len() {
         always_log!(
@@ -56,15 +55,14 @@ fn get_changed_files(base_branch: &str, incl_staged: bool) -> Option<Vec<String>
         .args(["diff", "--name-only", base_branch])
         .output()
         .map_err(|e| {
-            always_log!("Failed to run git diff against '{}': {}. Ensure git is installed and you're in a git repository.", base_branch, e);
+            always_log!("Failed to run git diff against '{base_branch}': {e}. Ensure git is installed and you're in a git repository.");
         })
         .ok()?;
 
     if !committed_output.status.success() {
         always_log!(
-            "Git diff command failed: {}. Ensure '{}' is a valid branch/commit.",
+            "Git diff command failed: {}. Ensure '{base_branch}' is a valid branch/commit.",
             String::from_utf8_lossy(&committed_output.stderr).trim(),
-            base_branch
         );
         return None;
     }
@@ -191,7 +189,7 @@ pub fn canonicalize_files(files: Vec<std::path::PathBuf>) -> Vec<String> {
                 Some(canonical_path)
             }
             Err(e) => {
-                warn!("Failed to canonicalize path '{}': {}", f.display(), e);
+                warn!("Failed to canonicalize path '{}': {e}", f.display());
                 None
             }
         })

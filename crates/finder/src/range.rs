@@ -1,3 +1,4 @@
+#![allow(clippy::range_plus_one)]
 use std::fmt::Display;
 
 use rangemap::RangeMap;
@@ -22,7 +23,7 @@ pub struct Range {
     end: LineCol,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct ByteRange {
     start: usize,
     end: usize,
@@ -45,7 +46,7 @@ pub struct RangeFile<'a> {
 }
 
 impl<'a> RangeFile<'a> {
-    pub fn from_src(src: &'a str) -> RangeFile<'a> {
+    pub fn from_src(src: &'a str) -> Self {
         let mut range_map = RangeMap::new();
         let mut line = 1;
         let mut last_line_start = 0;

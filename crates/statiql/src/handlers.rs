@@ -78,13 +78,12 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
         };
 
         info!(
-            "Processing {} files in parallel using {} threads...",
+            "Processing {} files in parallel using {max_threads} threads...",
             target_files.len(),
-            max_threads
         );
 
         let chunk_size = std::cmp::max(1, target_files.len() / max_threads);
-        debug!("Chunk size per thread: {}", chunk_size);
+        debug!("Chunk size per thread: {chunk_size}");
 
         let handles: Vec<thread::JoinHandle<()>> = target_files
             .chunks(chunk_size)
@@ -93,7 +92,7 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
                 let chunk_vec = chunk.to_vec();
                 let cfg = cfg.clone();
                 let app_cfg = config.clone();
-                debug!("Starting thread {} with {} files", i, chunk_vec.len());
+                debug!("Starting thread {i} with {} files", chunk_vec.len());
 
                 thread::spawn(move || {
                     debug!("Thread {i} processing files: {chunk_vec:?}");
@@ -120,10 +119,9 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
         info!("Processing {} files sequentially...", target_files.len());
         for (i, file_path) in target_files.iter().enumerate() {
             debug!(
-                "Processing file {}/{}: {}",
+                "Processing file {}/{}: {file_path}",
                 i + 1,
                 target_files.len(),
-                file_path
             );
             process_file(file_path, cfg.clone(), &config.clone());
         }
@@ -133,11 +131,11 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
 }
 
 fn process_file(file_path: &str, cfg: Arc<crate::FinderConfig>, app_cfg: &Arc<crate::Config>) {
-    debug!("Starting analysis of file: {}", file_path);
+    debug!("Starting analysis of file: {file_path}");
 
     let mut sql_finder = finder::SqlFinder::new(cfg);
     if let Some(sql_extract) = sql_finder.analyze_file(file_path) {
-        debug!("Found SQL extracts in {}", file_path);
+        debug!("Found SQL extracts in {file_path}");
         let analyzer = crate::analyzer::SqlAnalyzer::new(
             &crate::analyzer::SqlDialect::PostgreSQL,
             app_cfg.dialect_mappings.clone(),
@@ -145,7 +143,7 @@ fn process_file(file_path: &str, cfg: Arc<crate::FinderConfig>, app_cfg: &Arc<cr
         );
         analyzer.analyze_sql_extract(&sql_extract);
     } else {
-        debug!("No SQL found in file: {}", file_path);
+        debug!("No SQL found in file: {file_path}");
     }
 }
 
@@ -158,7 +156,7 @@ pub fn handle_init() {
             dir
         }
         Err(e) => {
-            error!("Failed to get current working directory: {}", e);
+            error!("Failed to get current working directory: {e}");
             return;
         }
     };
@@ -189,9 +187,8 @@ pub fn handle_init() {
         }
         Err(e) => {
             error!(
-                "Failed to create configuration file at '{}': {}. Check file permissions.",
+                "Failed to create configuration file at '{}': {e}. Check file permissions.",
                 path.display(),
-                e
             );
         }
     }

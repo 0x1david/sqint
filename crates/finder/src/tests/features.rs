@@ -35,8 +35,8 @@ mod tests {
         let finder = harness_create_test_finder();
         let contexts = finder.analyze_stmts(&parsed, &range_file);
 
-        println!("Parsed contexts: {:?}", contexts);
-        println!("Expected contexts: {:?}", expected);
+        println!("Parsed contexts: {contexts:?}");
+        println!("Expected contexts: {expected:?}");
 
         assert_eq!(
             contexts.len(),

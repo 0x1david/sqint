@@ -63,7 +63,7 @@ impl SqlFinder {
                 file_path,
                 strings
                     .iter()
-                    .map(|s| &s.sql_content[..s.sql_content.len().min(50)])
+                    .map(SqlString::trunc_default)
                     .collect::<Vec<_>>()
             );
         }
