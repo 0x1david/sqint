@@ -79,13 +79,6 @@ fn slice_to_glob(patterns: &[String], log_ctx: &str) -> GlobSet {
         })
         .collect();
 
-    if valid_globs.is_empty() {
-        debug!(
-            "GlobSet for {log_ctx} is empty - no valid patterns found from {} input patterns",
-            patterns.len()
-        );
-    }
-
     let builder = valid_globs
         .into_iter()
         .fold(GlobSetBuilder::new(), |mut builder, glob| {
