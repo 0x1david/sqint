@@ -1,7 +1,7 @@
 use crate::config::{Config, DEFAULT_CONFIG_NAME};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use ignore::WalkBuilder;
-use logging::{always_log, debug, error, warn};
+use logging::{always_log, error, warn};
 use std::{path::PathBuf, process::Command};
 
 /// Returns only files that have changed compared to the baseline branch
@@ -117,7 +117,6 @@ pub fn collect_files(paths: &[PathBuf], cfg: &Config) -> (Vec<PathBuf>, Vec<Path
 
     for path in paths {
         if path.is_file() {
-            debug!("Found explicit file {}", path.display());
             explicits.push(path.clone());
         } else if path.is_dir() {
             WalkBuilder::new(path)
@@ -159,13 +158,7 @@ pub fn filter_file_pats(files: Vec<String>, cfg: &Config) -> Vec<String> {
 
     files
         .into_iter()
-        .filter(|f| {
-            if !include_pats.is_match(f) || exclude_pats.is_match(f) {
-                debug!("File '{f}' filtered out by include/exclude patterns");
-                return false;
-            }
-            true
-        })
+        .filter(|f| !include_pats.is_match(f) || exclude_pats.is_match(f))
         .collect()
 }
 

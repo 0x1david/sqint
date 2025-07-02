@@ -1,14 +1,9 @@
-use logging::{always_log, debug, info, return_log};
+use logging::{always_log, info, return_log};
 use std::sync::Arc;
 use std::thread;
 
 #[allow(clippy::too_many_lines)]
 pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
-    debug!(
-        "Starting check handler with paths: {:?}",
-        cli.check_args.paths
-    );
-
     let cfg = Arc::new(finder::FinderConfig::new(
         &config.variable_contexts,
         &config.function_contexts,
@@ -21,8 +16,6 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
     let found_files = crate::files::canonicalize_files(found_files);
     let no_of_files = found_files.len() + explicit_files.len();
 
-    debug!("Found {no_of_files} files total.");
-
     if found_files.is_empty() && explicit_files.is_empty() {
         return_log!("No target files found in the specified paths.");
     }
@@ -34,7 +27,6 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
         .collect();
 
     let no_remaining = target_files.len();
-    debug!("After incremental filtering: {no_remaining} files remain",);
 
     if no_remaining == 0 {
         return_log!("No files to process after filtering.");
@@ -69,12 +61,7 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
             .into_iter()
             .for_each(|handle| handle.join().unwrap());
     } else {
-        for (i, file_path) in target_files.iter().enumerate() {
-            debug!(
-                "Processing file {}/{}: {file_path}",
-                i + 1,
-                target_files.len(),
-            );
+        for file_path in &target_files {
             process_file(file_path, cfg.clone(), &config.clone());
         }
     }
@@ -86,7 +73,6 @@ fn process_file(file_path: &str, cfg: Arc<crate::FinderConfig>, app_cfg: &Arc<cr
     let mut sql_finder = finder::SqlFinder::new(cfg);
 
     let Some(sql_extract) = sql_finder.analyze_file(file_path) else {
-        debug!("No SQL found in file: {file_path}");
         return;
     };
 
