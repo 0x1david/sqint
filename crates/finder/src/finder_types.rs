@@ -68,7 +68,7 @@ impl FinderConfig {
 }
 
 fn slice_to_glob(patterns: &[String], log_ctx: &str) -> GlobSet {
-    let valid_globs: Vec<Glob> = patterns
+    let valid_globs = patterns
         .iter()
         .filter_map(|pattern| match Glob::new(pattern) {
             Ok(glob) => Some(glob),
@@ -76,15 +76,12 @@ fn slice_to_glob(patterns: &[String], log_ctx: &str) -> GlobSet {
                 always_log!("Failed to parse {log_ctx} glob pattern '{pattern}': {e}");
                 None
             }
-        })
-        .collect();
-
-    let builder = valid_globs
-        .into_iter()
-        .fold(GlobSetBuilder::new(), |mut builder, glob| {
-            builder.add(glob);
-            builder
         });
+
+    let builder = valid_globs.fold(GlobSetBuilder::new(), |mut builder, glob| {
+        builder.add(glob);
+        builder
+    });
 
     builder.build().unwrap_or_else(|e| {
         error!("Failed to build GlobSet for {log_ctx}: {e}");

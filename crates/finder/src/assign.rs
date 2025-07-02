@@ -21,8 +21,8 @@ impl SqlFinder {
         let mut sql_strings = vec![];
 
         assign.targets.iter().enumerate().for_each(|(i, target)| {
-            let sql_results = self.process_assignment_target(target, &assign.value);
-            sql_strings = sql_results
+            sql_strings = self
+                .process_assignment_target(target, &assign.value)
                 .into_iter()
                 .map(|result| sql_result_to_string(result, range_file))
                 .collect();
@@ -35,8 +35,7 @@ impl SqlFinder {
         e: &ast::StmtExpr,
         range_file: &RangeFile,
     ) -> Vec<SqlString> {
-        let results = self.process_expr_stmt(&e.value);
-        results
+        self.process_expr_stmt(&e.value)
             .into_iter()
             .map(|result| sql_result_to_string(result, range_file))
             .collect()
@@ -47,16 +46,12 @@ impl SqlFinder {
         assign: &ast::StmtAnnAssign,
         range_file: &RangeFile,
     ) -> Vec<SqlString> {
-        if let Some(val) = &assign.value {
-            let sql_results = self.process_assignment_target(&assign.target, val);
-
-            sql_results
+        assign.value.as_ref().map_or_else(Vec::new, |val| {
+            self.process_assignment_target(&assign.target, val)
                 .into_iter()
                 .map(|result| sql_result_to_string(result, range_file))
                 .collect()
-        } else {
-            vec![]
-        }
+        })
     }
 }
 
@@ -89,9 +84,10 @@ impl SqlFinder {
             .enumerate()
             .flat_map(|(i, keyword)| {
                 keyword.arg.as_ref().map_or_else(Vec::new, |arg_name| {
-                    match self.config.is_sql_class_name(arg_name) {
-                        true => self.extract_content_flattened(&keyword.value, &function_name),
-                        false => vec![],
+                    if self.config.is_sql_class_name(arg_name) {
+                        self.extract_content_flattened(&keyword.value, &function_name)
+                    } else {
+                        vec![]
                     }
                 })
             })
@@ -168,10 +164,10 @@ impl SqlFinder {
     }
 
     fn process_by_ident(&self, name: &Identifier, value: &ast::Expr) -> Vec<SqlResult> {
-        match self.config.is_sql_variable_name(name) {
-            true => self.extract_content_flattened(value, name),
-            false => vec![],
+        if self.config.is_sql_variable_name(name) {
+            return self.extract_content_flattened(value, name);
         }
+        vec![]
     }
 
     fn handle_tuple_assignment(&self, targets: &[ast::Expr], value: &ast::Expr) -> Vec<SqlResult> {
@@ -369,10 +365,13 @@ impl SqlFinder {
                 "format" => self.extract_format_call(&v.args, &v.keywords, value),
                 _ => self.extract_content(value),
             },
-            ast::Expr::Name(name) => match self.config.is_sql_function_name(&name.id) {
-                true => v.args.iter().find_map(|arg| self.extract_content(arg)),
-                false => None,
-            },
+            ast::Expr::Name(name) => {
+                if self.config.is_sql_function_name(&name.id) {
+                    v.args.iter().find_map(|arg| self.extract_content(arg))
+                } else {
+                    None
+                }
+            }
             _ => bail_with!(None, "Unhandled function call type: {:?}", v.func),
         }
     }
@@ -409,7 +408,7 @@ impl SqlFinder {
                     "Unhandled value in args: {a:?}"
                 ),
             };
-            pos_fills.extend(parsed.iter().map(|p| p.to_string()));
+            pos_fills.extend(parsed.iter().map(std::string::ToString::to_string));
         }
 
         for kw in kwargs {
@@ -427,35 +426,32 @@ impl SqlFinder {
 
         let mut result = base_content.to_string();
 
-        match has_unpacked_dict {
-            true => {
-                let re = Regex::new(r"\{[^}]+\}")
-                    .expect("Broke the regex format call finder.")
-                    .replace_all(&result, "{PLACEHOLDER}")
-                    .to_string();
+        if has_unpacked_dict {
+            let re = Regex::new(r"\{[^}]+\}")
+                .expect("Broke the regex format call finder.")
+                .replace_all(&result, "{PLACEHOLDER}")
+                .to_string();
+        } else {
+            let numbered_re = Regex::new(r"\{(\d+)\}")
+                .expect("Broke the regex format call finder.")
+                .replace_all(&result, |caps: &regex::Captures| {
+                    let index: usize = caps[1].parse().unwrap_or(0);
+
+                    if index < pos_fills.len() {
+                        pos_fills[index].clone()
+                    } else {
+                        "{PLACEHOLDER}".to_string()
+                    }
+                })
+                .to_string();
+
+            for f in pos_fills {
+                result = result.replacen("{}", &f, 1);
             }
-            false => {
-                let numbered_re = Regex::new(r"\{(\d+)\}")
-                    .expect("Broke the regex format call finder.")
-                    .replace_all(&result, |caps: &regex::Captures| {
-                        let index: usize = caps[1].parse().unwrap_or(0);
 
-                        if index < pos_fills.len() {
-                            pos_fills[index].clone()
-                        } else {
-                            "{PLACEHOLDER}".to_string()
-                        }
-                    })
-                    .to_string();
-
-                for f in pos_fills {
-                    result = result.replacen("{}", &f, 1);
-                }
-
-                for (kw_name, val) in &kw_fills {
-                    let pat = format!("{{{kw_name}}}");
-                    result = result.replace(&pat, &val.to_string());
-                }
+            for (kw_name, val) in &kw_fills {
+                let pat = format!("{{{kw_name}}}");
+                result = result.replace(&pat, &val.to_string());
             }
         }
 

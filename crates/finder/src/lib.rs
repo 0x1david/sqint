@@ -18,7 +18,7 @@ pub struct SqlFinder {
 
 impl SqlFinder {
     #[must_use]
-    pub fn new(config: Arc<FinderConfig>) -> Self {
+    pub const fn new(config: Arc<FinderConfig>) -> Self {
         Self { config }
     }
 
