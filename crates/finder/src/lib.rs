@@ -51,7 +51,7 @@ impl SqlFinder {
         rf: &range::RangeFile,
     ) -> Vec<SqlString> {
         let mut results = Vec::new();
-        for stmt in suite.iter() {
+        for stmt in suite {
             let stmt_results = match stmt {
                 ast::Stmt::Assign(a) => self.analyze_assignment(a, rf),
                 ast::Stmt::AnnAssign(a) => self.analyze_annotated_assignment(a, rf),

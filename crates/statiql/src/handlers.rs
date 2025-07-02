@@ -52,7 +52,6 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
         };
 
         let chunk_size = std::cmp::max(1, target_files.len() / max_threads);
-
         target_files
             .chunks(chunk_size)
             .enumerate()
@@ -60,13 +59,14 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
                 let chunk_vec = chunk.to_vec();
                 let cfg = cfg.clone();
                 let app_cfg = config.clone();
-
                 thread::spawn(move || {
                     for file_path in chunk_vec {
                         process_file(&file_path, cfg.clone(), &app_cfg.clone());
                     }
                 })
             })
+            .collect::<Vec<_>>()
+            .into_iter()
             .for_each(|handle| handle.join().unwrap());
     } else {
         for (i, file_path) in target_files.iter().enumerate() {

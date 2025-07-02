@@ -2,7 +2,7 @@ use std::fmt;
 use std::ops::{Add, Div, Mul, Sub};
 
 use globset::{Glob, GlobSet, GlobSetBuilder};
-use logging::{always_log, debug, error};
+use logging::{always_log, error};
 
 use crate::range::ByteRange;
 
