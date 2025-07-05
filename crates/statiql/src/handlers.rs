@@ -46,8 +46,7 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
         let chunk_size = std::cmp::max(1, target_files.len() / max_threads);
         target_files
             .chunks(chunk_size)
-            .enumerate()
-            .map(|(i, chunk)| {
+            .map(|chunk| {
                 let chunk_vec = chunk.to_vec();
                 let cfg = cfg.clone();
                 let app_cfg = config.clone();

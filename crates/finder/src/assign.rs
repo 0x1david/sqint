@@ -20,7 +20,7 @@ impl SqlFinder {
     ) -> Vec<SqlString> {
         let mut sql_strings = vec![];
 
-        assign.targets.iter().enumerate().for_each(|(i, target)| {
+        assign.targets.iter().for_each(|target| {
             sql_strings = self
                 .process_assignment_target(target, &assign.value)
                 .into_iter()

@@ -10,8 +10,6 @@ use config::{Config, DEFAULT_CONFIG, DEFAULT_CONFIG_NAME};
 use finder::FinderConfig;
 use logging::{Logger, always_log, debug};
 
-//TODO: Function Arguments processing
-//TODO: Get rid of regex
 //TODO: Other commands?
 //TODO: Big Refactor + Tests + Asserts
 fn main() {

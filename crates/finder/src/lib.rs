@@ -121,8 +121,7 @@ impl SqlFinder {
 
         let handler_results: Vec<SqlString> = handlers
             .iter()
-            .enumerate()
-            .filter_map(|(i, h)| {
+            .filter_map(|h| {
                 h.as_except_handler()
                     .map_or_else(|| None, |eh| Some(self.analyze_stmts(&eh.body, range_file)))
             })

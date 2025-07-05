@@ -31,9 +31,9 @@ pub fn format_python_string(
 
         let (value, conv) = if specifier.starts_with("%(") {
             // Named format specifier like %(name)s
-            let key_end = specifier.find(')').unwrap();
+            let key_end = specifier.find(')')?;
             let key = &specifier[2..key_end]; // Extract key between %( and )
-            let conv = specifier.chars().last().unwrap();
+            let conv = specifier.chars().last()?;
 
             // Find the value in kwargs slice
             let value = kwargs.iter().find(|(k, _)| k == key).map(|(_, v)| v)?;
@@ -45,7 +45,7 @@ pub fn format_python_string(
             }
             let value = &args[args.len() - 1 - value_index];
             value_index += 1;
-            let conv = specifier.chars().last().unwrap();
+            let conv = specifier.chars().last()?;
             (value, conv)
         };
 
