@@ -41,10 +41,10 @@ fn main() {
     }
 
     let exit_code = Logger::exit_code();
-    if exit_code != 0 {
-        always_log!("Analysis completed with errors.");
-    } else {
+    if exit_code == 0 {
         always_log!("Analysis completed with no errors found.");
+    } else {
+        always_log!("Analysis completed with errors.");
     }
 
     std::process::exit(exit_code);

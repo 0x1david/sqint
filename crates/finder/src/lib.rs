@@ -78,7 +78,6 @@ impl SqlFinder {
                     .collect(),
 
                 ast::Stmt::Expr(e) => self.analyze_stmt_expr(e, rf),
-
                 ast::Stmt::Return(_)
                 | ast::Stmt::Import(_)
                 | ast::Stmt::ImportFrom(_)

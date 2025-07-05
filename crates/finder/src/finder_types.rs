@@ -3,6 +3,7 @@ use std::ops::{Add, Div, Mul, Sub};
 
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use logging::{always_log, error};
+use regex::Regex;
 
 use crate::range::ByteRange;
 
@@ -43,15 +44,18 @@ pub struct FinderConfig {
     variable_ctx: GlobSet,
     func_ctx: GlobSet,
     class_ctx: GlobSet,
+    sql_regex: Regex,
 }
 
 impl FinderConfig {
     #[must_use]
+    #[allow(clippy::missing_panics_doc)]
     pub fn new(variable_ctx: &[String], func_ctx: &[String], class_ctx: &[String]) -> Self {
         Self {
             variable_ctx: slice_to_glob(variable_ctx, "variable_contexts"),
             func_ctx: slice_to_glob(func_ctx, "function_contexts"),
             class_ctx: slice_to_glob(class_ctx, "class_contexts"),
+            sql_regex: Regex::new(r"(?i)^\s*(select|insert|update|delete|create|drop|alter|truncate|with|explain|show|describe)\b").unwrap(),
         }
     }
     pub(crate) fn is_sql_variable_name(&self, name: &str) -> bool {
@@ -64,6 +68,9 @@ impl FinderConfig {
 
     pub(crate) fn is_sql_class_name(&self, name: &str) -> bool {
         self.class_ctx.is_match(name)
+    }
+    pub(crate) fn is_sql_str(&self, input: &str) -> bool {
+        self.sql_regex.is_match(input)
     }
 }
 
@@ -145,6 +152,12 @@ impl FinderType {
     }
     pub fn trunc_default(&self) -> String {
         self.truncate_content(50)
+    }
+    pub fn get_str(&self) -> Option<&str> {
+        match self {
+            Self::Str(s) => Some(s),
+            _ => None,
+        }
     }
 }
 

@@ -78,32 +78,28 @@ impl SqlFinder {
             return vec![];
         }
 
-        let keyword_results: Vec<SqlResult> = call
+        let process_expr = |expr: &ast::Expr| -> Option<SqlResult> {
+            self.extract_content(expr).and_then(|content| {
+                content
+                    .get_str()
+                    .is_some_and(|s| self.config.is_sql_str(s))
+                    .then_some(SqlResult {
+                        byte_range: call.range.into(),
+                        variable_name: function_name.clone(),
+                        content,
+                    })
+            })
+        };
+        let kwargs = call
             .keywords
             .iter()
-            .enumerate()
-            .flat_map(|(i, keyword)| {
-                keyword.arg.as_ref().map_or_else(Vec::new, |arg_name| {
-                    if self.config.is_sql_class_name(arg_name) {
-                        self.extract_content_flattened(&keyword.value, &function_name)
-                    } else {
-                        vec![]
-                    }
-                })
-            })
-            .collect();
+            .filter_map(|kw| process_expr(&kw.value));
 
-        let arg_results: Vec<SqlResult> = call
-            .args
+        call.args
             .iter()
-            .enumerate()
-            .flat_map(|(i, arg)| self.extract_content_flattened(arg, &function_name))
-            .collect();
-
-        let total_results: Vec<SqlResult> =
-            arg_results.into_iter().chain(keyword_results).collect();
-
-        total_results
+            .filter_map(process_expr)
+            .chain(kwargs)
+            .collect()
     }
 
     fn extract_content_flattened(&self, expr: &ast::Expr, variable_name: &str) -> Vec<SqlResult> {
