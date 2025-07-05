@@ -23,13 +23,6 @@ class_contexts = [
     "fetch_records"
 ]
 
-# Keyword parameter names to look for in function calls
-kw_param_names = [
-    "query",
-    "sql", 
-    "select"
-]
-
 # Directories to look through for files matching `file_patterns`
 targets = ["."]
 

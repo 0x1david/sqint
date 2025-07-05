@@ -10,7 +10,10 @@ use config::{Config, DEFAULT_CONFIG, DEFAULT_CONFIG_NAME};
 use finder::FinderConfig;
 use logging::{Logger, always_log, debug};
 
-//TODO: Other commands?
+//TODO: Impl all README features
+//TODO: Add Dialects
+//TODO: Get rid of kw param names everywhere
+//TODO: Default config preparation
 //TODO: Big Refactor + Tests + Asserts
 fn main() {
     let cli = Cli::parse();
