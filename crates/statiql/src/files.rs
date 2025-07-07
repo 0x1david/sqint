@@ -155,10 +155,9 @@ pub fn canonicalize_files(files: Vec<std::path::PathBuf>) -> Vec<String> {
 pub fn filter_file_pats(files: Vec<String>, cfg: &Config) -> Vec<String> {
     let include_pats: GlobSet = slice_to_glob(&cfg.file_patterns, "file_patterns");
     let exclude_pats: GlobSet = slice_to_glob(&cfg.exclude_patterns, "exclude_patterns");
-
     files
         .into_iter()
-        .filter(|f| !include_pats.is_match(f) || exclude_pats.is_match(f))
+        .filter(|f| include_pats.is_match(f) && !exclude_pats.is_match(f))
         .collect()
 }
 

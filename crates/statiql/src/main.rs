@@ -12,7 +12,6 @@ use logging::{Logger, always_log, debug};
 
 //TODO: Impl all README features
 //TODO: Get rid of kw param names everywhere
-//TODO: Default config preparation
 //TODO: Big Refactor + Tests + Asserts
 fn main() {
     let cli = Cli::parse();

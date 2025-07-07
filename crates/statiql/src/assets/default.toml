@@ -1,79 +1,135 @@
 # =============================================================================
+# SQINT CONFIGURATION
+# =============================================================================
+# Configuration file for sqint - a static SQL analysis tool
+# This file controls how sqint detects, processes, and analyzes SQL queries
+# in your codebase for potential issues and improvements.
+
+# =============================================================================
 # DETECTION SETTINGS
 # =============================================================================
-# Variable names to look for and analyze (empty list means analyze all variables)
+# These settings control how sqint identifies SQL code within your files
+
+# Variable names to look for and analyze SQL within (supports wildcards with *)
+# If empty, sqint will not analyze any variables
+# Examples: "query", "*sql*", "database_*", "stmt"
 variable_contexts = [
-    "query",
-    "sql",
-    "statement",
+    "*query*",
+    "*sql*", 
+    "*statement*",
+    "*stmt*",
 ]
-# Function names to analyze SQL within (empty list means analyze all functions)
+
+# Function names to analyze SQL within (supports wildcards with *)
+# If empty, sqint will not analyze any functions
+# Examples: "execute_query", "run_*", "*_sql"
 function_contexts = []
-# Class method names to analyze SQL within (empty list means analyze all methods)
-class_contexts = []
-# Minimum string length of an sql string to analyse
-min_sql_length = 10
-# Whether contexts (function names, variable names...) are case-sensitive
-case_sensitive = false
 
 # =============================================================================
 # FILE PROCESSING
 # =============================================================================
-# File patterns to look for in the specified `targets`
+# These settings control which files sqint will process
+
+# File patterns to include in analysis (supports glob patterns)
+# Add patterns for the file types you want to analyze
 file_patterns = [
-    "*.py",
-    "*.pyi",
-    "*.ipynb",
+    "*.py",        # Python files
+    "*.pyi",       # Python interface files
+    "*.ipynb",     # Jupyter notebooks
 ]
-# File name patterns to exclude from analysis
-exclude_patterns = []
-# Whether file matching will respect git ignore
+
+# File name patterns to exclude from analysis (supports glob patterns)
+# Use this to skip test files, directiories, etc. that you don't want analyzed
+exclude_patterns = [
+    # "*test*",
+    # "*/migrations/*",
+    # "*/generated/*",
+]
+
+# Whether to respect .gitignore files when scanning for files
 respect_gitignore = true
-# Whether file matching will respect global git ignore
+
+# Whether to respect global .gitignore files (~/.gitignore_global)
 respect_global_gitignore = false
-# Whether file matching will respect git exclude
+
+# Whether to respect .git/info/exclude files
 respect_git_exclude = true
-# Whether to include hidden files in analysis
+
+# Whether to include hidden files (starting with .) in analysis
+# Usually not needed unless you have SQL in hidden configuration files
 include_hidden_files = false
 
 # =============================================================================
 # PERFORMANCE SETTINGS
 # =============================================================================
-# Enable parallel processing for better performance
+# These settings control how sqint utilizes system resources
+
+# Enable parallel processing for faster analysis of large codebases
 parallel_processing = true
-# Maximum number of worker threads (0 = auto-detect based on CPU cores)
+
+# Maximum number of worker threads to use for parallel processing
+# 0 = auto-detect based on CPU cores (recommended)
+# Set to a specific number to limit resource usage
 max_threads = 0
-# Number of files to process per thread batch
-thread_chunk_size = 5
 
 # =============================================================================
 # INCREMENTAL MODE
 # =============================================================================
-# Only analyze files changed since last run (requires git)
+# These settings enable analyzing only changed files for faster subsequent runs
+
+# Only analyze files that have changed since the last run
+# Requires git repository and significantly speeds up analysis on large codebases
 incremental_mode = false
-# Git branch to compare against for incremental mode
+
+# Git branch to compare against when using incremental mode
+# Typically "main", "master", or "develop" depending on your workflow
 baseline_branch = "main"
-# Include staged but uncommitted changes in incremental mode
+
+# Include staged but uncommitted changes in incremental analysis
+# Useful for pre-commit hooks and continuous integration
 include_staged = true
 
 # =============================================================================
 # OUTPUT SETTINGS
 # =============================================================================
-# Verbose output will include all levels of information except for debug information
-verbose = false
-# Quiet output will ignore normal output
-quiet = false
-# Debug output will include detailed debugging information
-debug = false
+# These settings control the verbosity and format of sqint's output
+
+# Logging level for output control
+# Options: "always", "error", "warn", "info", "debug", "trace"
+# - "always": Not recommended: only contains the most general information.
+# - "error": Recommended: Shows errors + always in sql scripts (errors in stderr)
+# - "warn": Optional: Show warnings + error (warnings don't go to stderr)
+# - "info": Not recommended: Show detailed information + warn
+# - "bail": For development: Info + not implemented parsing paths
+# - "debug": For debugging: Show bail + function entries and exits (very verbose)
+loglevel = "error"
 
 # =============================================================================
 # SQL PARSING SETTINGS
 # =============================================================================
-# Placeholders that will be replaced with values for SQL parsing
+# These settings control how sqint parses and validates SQL syntax
+
+# SQL dialect to use for parsing and validation
+# Options: "generic", "mysql", "postgres", "sqlite", "mssql", "oracle",
+#          "bigqueury", "snowflake", "redshift", "clickhouse", "duckdb", 
+#          "hive", "ansi"
+# Use "generic" for multi-database compatibility or specify your database
+dialect = "generic"
+
+# Parameter markers that will be recognized in SQL queries
+# These are placeholders that get replaced with actual values at runtime
+# The parser will temporarily fill these with parsable values
 param_markers = [
-    "?",
+    "?",           # Standard SQL parameter marker
+    # "$1", "$2",   # PostgreSQL-style parameters
+    # "@param",     # Named parameters
 ]
-# String mappings to fix common SQL dialect differences
+
+# String mappings to normalize SQL dialect differences
+# This helps sqint understand database-specific syntax variations
+# Recommended for handling implementation specific syntax
+# Or for handling multiple dialect codebases
 [dialect_mappings]
-"NOTNULL" = "NOT NULL"
-"ISNULL" = "IS NULL"
+# "NOTNULL" = "NOT NULL"     # Common shorthand to standard SQL
+# "ISNULL" = "IS NULL"       # Common shorthand to standard SQL
+# "LIMIT 1" = "ROWNUM = 1" # Oracle-style mapping

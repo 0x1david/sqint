@@ -9,7 +9,6 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
     let cfg = Arc::new(finder::FinderConfig::new(
         &config.variable_contexts,
         &config.function_contexts,
-        &config.class_contexts,
     ));
 
     let (found_files, explicit_files) = crate::files::collect_files(&cli.check_args.paths, config);

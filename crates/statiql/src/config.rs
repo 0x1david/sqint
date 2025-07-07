@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-pub const DEFAULT_CONFIG_NAME: &str = "statiql-config.toml";
+pub const DEFAULT_CONFIG_NAME: &str = "sqint.toml";
 pub const DEFAULT_CONFIG: &str = include_str!("./assets/default.toml");
 
 #[allow(clippy::struct_excessive_bools)]
@@ -14,9 +14,6 @@ pub struct Config {
     // Detection Settings
     pub variable_contexts: Vec<String>,
     pub function_contexts: Vec<String>,
-    pub class_contexts: Vec<String>,
-    pub min_sql_length: usize,
-    pub case_sensitive: bool,
 
     // File Processing
     pub file_patterns: Vec<String>,
@@ -55,9 +52,6 @@ impl Default for Config {
                 "*stmt*".to_string(),
             ],
             function_contexts: vec![],
-            class_contexts: vec![],
-            min_sql_length: 10,
-            case_sensitive: false,
 
             // File Processing
             file_patterns: vec![
@@ -116,15 +110,6 @@ impl Config {
         }
         if !other.function_contexts.is_empty() {
             self.function_contexts = other.function_contexts;
-        }
-        if !other.class_contexts.is_empty() {
-            self.class_contexts = other.class_contexts;
-        }
-        if other.min_sql_length != 10 {
-            self.min_sql_length = other.min_sql_length;
-        }
-        if other.case_sensitive {
-            self.case_sensitive = other.case_sensitive;
         }
 
         // File Processing
