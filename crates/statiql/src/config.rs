@@ -39,6 +39,7 @@ pub struct Config {
     pub loglevel: LogLevel,
 
     // SQL Parsing Settings
+    pub dialect: String,
     pub param_markers: Vec<String>,
     pub dialect_mappings: HashMap<String, String>,
 }
@@ -83,6 +84,7 @@ impl Default for Config {
             loglevel: LogLevel::default(),
 
             // SQL Parsing Settings
+            dialect: "generic".to_string(),
             param_markers: vec!["?".to_string()],
             dialect_mappings: {
                 let mut map = HashMap::new();

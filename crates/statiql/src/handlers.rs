@@ -1,6 +1,8 @@
-use logging::{always_log, info, return_log};
+use logging::{always_log, error, info};
 use std::sync::Arc;
 use std::thread;
+
+use crate::analyzer::SqlDialect;
 
 #[allow(clippy::too_many_lines)]
 pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
@@ -17,7 +19,8 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
     let no_of_files = found_files.len() + explicit_files.len();
 
     if found_files.is_empty() && explicit_files.is_empty() {
-        return_log!("No target files found in the specified paths.");
+        always_log!("No target files found in the specified paths.");
+        return;
     }
 
     let target_files: Vec<String> = crate::files::filter_incremental_files(&found_files, config);
@@ -29,7 +32,8 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
     let no_remaining = target_files.len();
 
     if no_remaining == 0 {
-        return_log!("No files to process after filtering.");
+        always_log!("No files to process after filtering.");
+        return;
     }
 
     if config.parallel_processing {
@@ -75,8 +79,19 @@ fn process_file(file_path: &str, cfg: Arc<crate::FinderConfig>, app_cfg: &Arc<cr
         return;
     };
 
+    let dialect = match SqlDialect::from_str(&app_cfg.dialect) {
+        Some(dialect) => dialect,
+        None => {
+            error!(
+                "Unknown dialect. Supported: {:?}",
+                SqlDialect::supported_dialects()
+            );
+            return;
+        }
+    };
+
     let analyzer = crate::analyzer::SqlAnalyzer::new(
-        &crate::analyzer::SqlDialect::Generic, // TODO
+        &dialect,
         app_cfg.dialect_mappings.clone(),
         &app_cfg.param_markers,
     );
@@ -88,17 +103,19 @@ pub fn handle_init() {
     let current_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(e) => {
-            return_log!("Failed to get current working directory: {e}");
+            always_log!("Failed to get current working directory: {e}");
+            return;
         }
     };
 
     let path = current_dir.join(crate::DEFAULT_CONFIG_NAME);
 
     if path.exists() {
-        return_log!(
+        always_log!(
             "Configuration file already exists at '{}'. Not overwriting.",
             path.display()
         );
+        return;
     }
 
     match std::fs::write(&path, crate::DEFAULT_CONFIG) {

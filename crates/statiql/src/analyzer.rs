@@ -1,6 +1,11 @@
 use std::collections::HashMap;
 
-use sqlparser::dialect::{GenericDialect, PostgreSqlDialect, SQLiteDialect};
+use sqlparser::dialect::{
+    AnsiDialect, BigQueryDialect, ClickHouseDialect, DuckDbDialect, GenericDialect, HiveDialect,
+    MsSqlDialect, MySqlDialect, PostgreSqlDialect, RedshiftSqlDialect, SQLiteDialect,
+    SnowflakeDialect,
+};
+
 use sqlparser::parser::{Parser, ParserError};
 
 use finder::{SqlExtract, SqlString};
@@ -11,6 +16,15 @@ pub enum SqlDialect {
     Generic,
     PostgreSQL,
     SQLite,
+    Ansi,
+    BigQuery,
+    ClickHouse,
+    DuckDb,
+    Hive,
+    MsSql,
+    MySql,
+    RedshiftSql,
+    Snowflake,
 }
 
 pub struct SqlAnalyzer {
@@ -24,11 +38,19 @@ impl SqlAnalyzer {
         mut dialect_mappings: HashMap<String, String>,
         placeholders: &[String],
     ) -> Self {
-        // TODO: Solve for how to work with multiple dialects
         let dialect: Box<dyn sqlparser::dialect::Dialect> = match dialect {
             SqlDialect::Generic => Box::new(GenericDialect {}),
             SqlDialect::PostgreSQL => Box::new(PostgreSqlDialect {}),
             SqlDialect::SQLite => Box::new(SQLiteDialect {}),
+            SqlDialect::Ansi => Box::new(AnsiDialect {}),
+            SqlDialect::BigQuery => Box::new(BigQueryDialect {}),
+            SqlDialect::ClickHouse => Box::new(ClickHouseDialect {}),
+            SqlDialect::DuckDb => Box::new(DuckDbDialect {}),
+            SqlDialect::Hive => Box::new(HiveDialect {}),
+            SqlDialect::MsSql => Box::new(MsSqlDialect {}),
+            SqlDialect::MySql => Box::new(MySqlDialect {}),
+            SqlDialect::RedshiftSql => Box::new(RedshiftSqlDialect {}),
+            SqlDialect::Snowflake => Box::new(SnowflakeDialect {}),
         };
         for p in placeholders {
             dialect_mappings.insert(p.clone(), "PLACEHOLDER".to_string());
@@ -133,5 +155,45 @@ impl SqlError {
                 Self::new("Recursion Limit Exceeded".to_string(), 0, 0)
             }
         }
+    }
+}
+
+impl SqlDialect {
+    pub fn from_str(dialect_str: &str) -> Option<Self> {
+        let normalized = dialect_str.to_lowercase();
+
+        match normalized.as_str() {
+            "postgres" => Some(SqlDialect::PostgreSQL),
+            "mysql" => Some(SqlDialect::MySql),
+            "sqlite" => Some(SqlDialect::SQLite),
+            "mssql" => Some(SqlDialect::MsSql),
+            "bigquery" => Some(SqlDialect::BigQuery),
+            "snowflake" => Some(SqlDialect::Snowflake),
+            "redshift" => Some(SqlDialect::RedshiftSql),
+            "clickhouse" => Some(SqlDialect::ClickHouse),
+            "duckdb" => Some(SqlDialect::DuckDb),
+            "hive" => Some(SqlDialect::Hive),
+            "ansi" => Some(SqlDialect::Ansi),
+            "generic" | "default" => Some(SqlDialect::Generic),
+            _ => None,
+        }
+    }
+
+    pub fn supported_dialects() -> Vec<&'static str> {
+        vec![
+            "postgres",
+            "mysql",
+            "sqlite",
+            "mssql",
+            "bigquery",
+            "snowflake",
+            "redshift",
+            "clickhouse",
+            "duckdb",
+            "hive",
+            "ansi",
+            "generic",
+            "default",
+        ]
     }
 }
