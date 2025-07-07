@@ -7,7 +7,7 @@ Sqint is a specialized linter that analyzes Python code to find and validate SQL
 ## Features
 
 - 🔍 **Smart SQL Detection** - Finds SQL strings in variables, function calls, and class methods based on configurable patterns
-- 🗃️ **Multi-dialect Support** - Supports PostgreSQL, Oracle, and SQLite dialects with configurable mappings
+- 🗃️ **Multi-dialect Support** - Supports PostgreSQL, Oracle, SQLite and many other dialects, plus configurable mappings
 - ⚙️ **Flexible Configuration** - Configure through `sqint.toml` or `pyproject.toml`
 - 🚀 **Built for Speed** - Written in Rust for fast analysis across large codebases
 - 📦 **Easy Installation** - Installable via pip with no external dependencies
@@ -117,13 +117,6 @@ function_contexts = [
     "fetch_records"
 ]
 
-# Keyword parameter names to look for in function calls
-kw_param_names = [
-    "query",
-    "sql", 
-    "select"
-]
-
 # Directories to analyze
 targets = ["."]
 
@@ -133,9 +126,6 @@ file_patterns = [
     "*.pyi", 
     "*.ipynb",
 ]
-
-# Minimum string length to analyze
-min_sql_length = 10
 ```
 
 ### Advanced Configuration
@@ -148,7 +138,7 @@ exclude_patterns = ["*_test.py", "migrations/*"]
 respect_gitignore = true
 
 # Log level: "trace", "debug", "info", "warn", "error", "bail"
-loglevel = "info"
+loglevel = "error"
 
 # Incremental mode - only analyze changed files
 incremental_mode = true
@@ -189,10 +179,19 @@ min_sql_length = 10
 
 Sqint supports multiple SQL dialects:
 
-- **PostgreSQL** - Full syntax support
-- **Oracle** - Full syntax support  
-- **SQLite** - Full syntax support
-- **Generic** - Recommended for multi-dialect codebases
+- **Generic** - Recommended as a baseline for multi-dialect codebases
+- **PostgreSQL**
+- **Oracle**
+- **SQLite**
+- **Ansi**
+- **BigQuery**
+- **ClickHouse**
+- **DuckDb**
+- **Hive**
+- **MsSql**
+- **MySql**
+- **RedshiftSql**
+- **Snowflake**
 
 ### Multi-dialect Projects
 
@@ -229,22 +228,6 @@ update_stmt = "UPDATE users SET active = 1"
 # Matches function_contexts = ["execute", "fetchall"]
 cursor.execute("SELECT * FROM products")
 db.fetchall("SELECT name FROM categories")
-```
-
-### Class Methods
-```python
-# Matches class_contexts = ["execute", "select"]
-class DatabaseManager:
-    def execute(self, query):
-        # query parameter will be validated
-        pass
-```
-
-### Keyword Parameters
-```python
-# Matches kw_param_names = ["query", "sql"]
-db.run(query="SELECT * FROM users")
-execute_sql(sql="INSERT INTO logs VALUES (1, 'test')")
 ```
 
 ## Command Line Options
@@ -365,7 +348,7 @@ Sqint is released under the MIT OR Apache-2.0 license.
 
 Sqint is built with:
 - [sqlparser](https://github.com/sqlparser-rs/sqlparser-rs) for SQL parsing
-- [rustpython-parser](https://github.com/RustPython/RustPython) for Python AST analysis
+- [rustpython-parser](https://github.com/RustPython/RustPython) for parsing Python files to AST
 - [clap](https://github.com/clap-rs/clap) for command-line interface
 
 I'm grateful to the maintainers of these excellent tools and the value they provide to the Rust ecosystem.
