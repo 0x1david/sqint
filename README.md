@@ -81,9 +81,6 @@ cursor.execute(user_query, (user_id,))
 # This will trigger a syntax error
 bad_sql = "SELECT * FROM users WHERE"
 db.fetchall(bad_sql)
-
-# This will be detected based on keyword parameter
-results = db.execute(query="SELECT name, email FROM customers")
 ```
 
 Sqint will:
