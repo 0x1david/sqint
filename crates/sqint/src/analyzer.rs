@@ -163,18 +163,18 @@ impl SqlDialect {
         let normalized = dialect_str.to_lowercase();
 
         match normalized.as_str() {
-            "postgres" => Some(SqlDialect::PostgreSQL),
-            "mysql" => Some(SqlDialect::MySql),
-            "sqlite" => Some(SqlDialect::SQLite),
-            "mssql" => Some(SqlDialect::MsSql),
-            "bigquery" => Some(SqlDialect::BigQuery),
-            "snowflake" => Some(SqlDialect::Snowflake),
-            "redshift" => Some(SqlDialect::RedshiftSql),
-            "clickhouse" => Some(SqlDialect::ClickHouse),
-            "duckdb" => Some(SqlDialect::DuckDb),
-            "hive" => Some(SqlDialect::Hive),
-            "ansi" => Some(SqlDialect::Ansi),
-            "generic" | "default" => Some(SqlDialect::Generic),
+            "postgres" => Some(Self::PostgreSQL),
+            "mysql" => Some(Self::MySql),
+            "sqlite" => Some(Self::SQLite),
+            "mssql" => Some(Self::MsSql),
+            "bigquery" => Some(Self::BigQuery),
+            "snowflake" => Some(Self::Snowflake),
+            "redshift" => Some(Self::RedshiftSql),
+            "clickhouse" => Some(Self::ClickHouse),
+            "duckdb" => Some(Self::DuckDb),
+            "hive" => Some(Self::Hive),
+            "ansi" => Some(Self::Ansi),
+            "generic" | "default" => Some(Self::Generic),
             _ => None,
         }
     }

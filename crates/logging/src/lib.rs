@@ -144,7 +144,7 @@ impl Logger {
 }
 
 #[macro_export]
-macro_rules! log {
+macro_rules! log{
     ($level:expr, $($arg:tt)*) => {
         if $crate::Logger::should_log($level) {
             $crate::Logger::log_message(

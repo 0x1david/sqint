@@ -14,7 +14,7 @@ use logging::{Logger, always_log, debug};
 //TODO: Big Refactor + Tests + Asserts
 fn main() {
     let cli = Cli::parse();
-    let config = files::load_config();
+    let config = cli.merge_with_config(files::load_config());
     setup_logging(&cli, &config);
 
     debug!("CLI arguments parsed: {:?}", cli);

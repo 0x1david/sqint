@@ -234,17 +234,16 @@ db.fetchall("SELECT name FROM categories")
 sqint [PATH]                    # Check files/directories
 sqint --config custom.toml      # Use custom config file
 sqint --exclude "test_*.py"     # Exclude patterns
-sqint --errors-only            # Show only errors
-sqint --max-issues 10          # Limit reported issues
-sqint --fail-on-issues         # Exit with error code if issues found
+sqint --errors-only             # Show only errors
+sqint --max-issues 10           # Limit reported issues
+sqint --fail-on-issues          # Exit with error code if issues found
 
 # Output formats
-sqint --format colored         # Colored terminal output (default)
-sqint --format plain          # Plain text output
+sqint --plain                   # Non colored output
 
 # Debugging
-sqint --debug                 # Enable debug output (Mostly intended for development)
-sqint --loglevel error        # Set log level
+sqint --debug                   # Enable debug output (Mostly intended for development)
+sqint --loglevel error          # Set log level
 ```
 
 ## Examples

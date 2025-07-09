@@ -78,15 +78,12 @@ fn process_file(file_path: &str, cfg: Arc<crate::FinderConfig>, app_cfg: &Arc<cr
         return;
     };
 
-    let dialect = match SqlDialect::from_str(&app_cfg.dialect) {
-        Some(dialect) => dialect,
-        None => {
-            error!(
-                "Unknown dialect. Supported: {:?}",
-                SqlDialect::supported_dialects()
-            );
-            return;
-        }
+    let Some(dialect) = SqlDialect::from_str(&app_cfg.dialect) else {
+        error!(
+            "Unknown dialect. Supported: {:?}",
+            SqlDialect::supported_dialects()
+        );
+        return;
     };
 
     let analyzer = crate::analyzer::SqlAnalyzer::new(
