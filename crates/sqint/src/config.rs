@@ -5,6 +5,7 @@ use std::fs;
 use std::path::Path;
 
 pub const DEFAULT_CONFIG_NAME: &str = "sqint.toml";
+pub const PYPROJECT_CONFIG_NAME: &str = "pyproject.toml";
 pub const DEFAULT_CONFIG: &str = include_str!("./assets/default.toml");
 
 #[allow(clippy::struct_excessive_bools)]
@@ -39,6 +40,18 @@ pub struct Config {
     pub dialect: String,
     pub param_markers: Vec<String>,
     pub dialect_mappings: HashMap<String, String>,
+}
+
+/// Wrapper for pyproject.toml structure
+#[derive(Debug, Deserialize)]
+struct PyprojectToml {
+    tool: Option<ToolConfig>,
+}
+
+/// Tool configuration section in pyproject.toml
+#[derive(Debug, Deserialize)]
+struct ToolConfig {
+    sqint: Option<Config>,
 }
 
 impl Default for Config {
@@ -91,15 +104,48 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Load configuration from a file, supporting both sqint.toml and pyproject.toml formats
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, ConfigError> {
+        let path = path.as_ref();
         let content = fs::read_to_string(path)
             .map_err(|e| ConfigError::Io(format!("Failed to read config file: {e}")))?;
-        Self::from_toml(&content)
+
+        if path.file_name().and_then(|name| name.to_str()) == Some(PYPROJECT_CONFIG_NAME) {
+            Self::from_pyproject_toml(&content)
+        } else {
+            Self::from_toml(&content)
+        }
     }
 
     pub fn from_toml(toml_content: &str) -> Result<Self, ConfigError> {
         toml::from_str(toml_content)
             .map_err(|e| ConfigError::Parse(format!("Failed to parse TOML: {e}")))
+    }
+
+    /// Parse configuration from pyproject.toml file
+    pub fn from_pyproject_toml(toml_content: &str) -> Result<Self, ConfigError> {
+        let pyproject: PyprojectToml = toml::from_str(toml_content)
+            .map_err(|e| ConfigError::Parse(format!("Failed to parse pyproject.toml: {e}")))?;
+
+        match pyproject.tool.and_then(|tool| tool.sqint) {
+            Some(config) => Ok(config),
+            None => Err(ConfigError::Parse(
+                "No [tool.sqint] section found in pyproject.toml".to_string(),
+            )),
+        }
+    }
+
+    /// Try to find and load configuration from common locations
+    pub fn find_and_load() -> Result<Self, ConfigError> {
+        if let Ok(config) = Self::from_file(PYPROJECT_CONFIG_NAME) {
+            return Ok(config);
+        }
+
+        if let Ok(config) = Self::from_file(DEFAULT_CONFIG_NAME) {
+            return Ok(config);
+        }
+
+        Ok(Self::default())
     }
 
     /// Merge this config with another, preferring values from the other config
@@ -169,4 +215,71 @@ pub enum ConfigError {
     Io(String),
     #[error("Parse error: {0}")]
     Parse(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pyproject_toml_parsing() {
+        let pyproject_content = r#"
+[build-system]
+requires = ["setuptools", "wheel"]
+
+[tool.sqint]
+variable_contexts = ["*query*", "*sql*", "*custom*"]
+file_patterns = ["*.py", "*.sql"]
+parallel_processing = true
+max_threads = 4
+loglevel = "info"
+
+[tool.sqint.dialect_mappings]
+NOTNULL = "NOT NULL"
+ISNULL = "IS NULL"
+"#;
+
+        let config = Config::from_pyproject_toml(pyproject_content).unwrap();
+        assert_eq!(
+            config.variable_contexts,
+            vec!["*query*", "*sql*", "*custom*"]
+        );
+        assert_eq!(config.file_patterns, vec!["*.py", "*.sql"]);
+        assert_eq!(config.max_threads, 4);
+        assert!(config.parallel_processing);
+    }
+
+    #[test]
+    fn test_pyproject_toml_missing_section() {
+        let pyproject_content = r#"
+[build-system]
+requires = ["setuptools", "wheel"]
+
+[tool.other]
+some_config = "value"
+"#;
+
+        let result = Config::from_pyproject_toml(pyproject_content);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("No [tool.sqint] section found")
+        );
+    }
+
+    #[test]
+    fn test_standalone_toml_parsing() {
+        let toml_content = r#"
+variable_contexts = ["*query*", "*sql*"]
+file_patterns = ["*.py"]
+parallel_processing = false
+"#;
+
+        let config = Config::from_toml(toml_content).unwrap();
+        assert_eq!(config.variable_contexts, vec!["*query*", "*sql*"]);
+        assert_eq!(config.file_patterns, vec!["*.py"]);
+        assert!(!config.parallel_processing);
+    }
 }

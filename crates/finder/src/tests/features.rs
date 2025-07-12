@@ -26,7 +26,7 @@ mod tests {
             "outer_func".to_string(),
         ];
         let class_ctx = vec!["Ok".to_string()];
-        SqlFinder::new(FinderConfig::new(&variable_ctx, &func_ctx, &class_ctx).into())
+        SqlFinder::new(FinderConfig::new(&variable_ctx, &func_ctx).into())
     }
 
     fn harness_find(code: &str, expected: Vec<(&str, &str)>, name: &str) {
