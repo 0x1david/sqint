@@ -1431,4 +1431,16 @@ query_fun(
             "multiline string assignment",
         );
     }
+
+    #[test]
+    fn ignore_fully_dynamic_var() {
+        harness_find(
+            r#"
+s = "SELECT * FROM users"
+query = s
+        "#,
+            vec![],
+            "simple assignment",
+        );
+    }
 }

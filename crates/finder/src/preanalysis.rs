@@ -1,4 +1,3 @@
-#![allow(clippy::range_plus_one)]
 use std::fmt::Display;
 
 use rangemap::RangeMap;

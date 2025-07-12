@@ -10,7 +10,6 @@ use config::{Config, DEFAULT_CONFIG, DEFAULT_CONFIG_NAME};
 use finder::FinderConfig;
 use logging::{Logger, always_log, debug};
 
-//TODO: Skip fully dynamic allocations e.g execute_query = dict[value] should not be evald
 //TODO: .join support
 //TODO: Impl all README features
 //TODO: Big Refactor + Tests + Asserts

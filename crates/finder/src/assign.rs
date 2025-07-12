@@ -19,6 +19,9 @@ impl SqlFinder {
         range_file: &PreanalyzedFile,
     ) -> Vec<SqlString> {
         let mut sql_strings = vec![];
+        if let ast::Expr::Name(_) = *assign.value {
+            return sql_strings;
+        }
 
         assign.targets.iter().for_each(|target| {
             sql_strings = self
