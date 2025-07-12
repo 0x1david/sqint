@@ -20,20 +20,17 @@ impl Display for LineCol {
 #[derive(Debug, Clone)]
 pub struct Range {
     pub start: LineCol,
-    end: LineCol,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct ByteRange {
     start: usize,
-    end: usize,
 }
 
 impl From<TextRange> for ByteRange {
     fn from(value: TextRange) -> Self {
         Self {
             start: value.start().to_usize(),
-            end: value.end().to_usize(),
         }
     }
 }
@@ -125,27 +122,10 @@ impl<'a> PreanalyzedFile<'a> {
         false
     }
 
-    pub fn offset_to_linecol(&self, offset: usize) -> LineCol {
-        let (range, line) = self
-            .map
-            .get_key_value(&offset)
-            .expect("We analyze files right before calculating linecols.");
-        let col = self.src[range.start..offset].chars().count() + 1;
-        LineCol {
-            col,
-            line: *line,
-            byte_offset: offset,
-        }
-    }
-
     pub fn byterange_to_range(&self, byte_range: ByteRange) -> Range {
         let (start_line_byte_range, start_line_number) = self
             .map
             .get_key_value(&byte_range.start)
-            .expect("We analyze files right before calculating linecols.");
-        let (end_line_byte_range, end_line_number) = self
-            .map
-            .get_key_value(&byte_range.end)
             .expect("We analyze files right before calculating linecols.");
 
         let start_col = self.src[start_line_byte_range.start..byte_range.start]
@@ -153,29 +133,12 @@ impl<'a> PreanalyzedFile<'a> {
             .count()
             + 1;
 
-        let end_col = if end_line_number == start_line_number {
-            self.src[start_line_byte_range.start..byte_range.end]
-                .chars()
-                .count()
-                + 1
-        } else {
-            self.src[end_line_byte_range.start..byte_range.end]
-                .chars()
-                .count()
-                + 1
-        };
-
         let start = LineCol {
             col: start_col,
             line: *start_line_number,
             byte_offset: byte_range.start,
         };
-        let end = LineCol {
-            col: end_col,
-            line: *end_line_number,
-            byte_offset: byte_range.end,
-        };
 
-        Range { start, end }
+        Range { start }
     }
 }

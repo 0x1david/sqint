@@ -1,4 +1,3 @@
-#![allow(dead_code, unused_variables, clippy::multiple_crate_versions)]
 mod analyzer;
 mod cli;
 mod config;

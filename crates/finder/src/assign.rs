@@ -4,7 +4,6 @@ use crate::format::format_python_string;
 use crate::preanalysis::PreanalyzedFile;
 use crate::{SqlFinder, SqlString};
 use logging::{bail, bail_with};
-use regex::Regex;
 use rustpython_parser::ast::{Operator, Ranged};
 use rustpython_parser::{
     ast::{self, Identifier},
@@ -281,7 +280,6 @@ impl SqlFinder {
                     .iter()
                     .map(|val| self.extract_content(val))
                     .collect();
-                dbg!(&parts);
 
                 parts.map(|parts| {
                     let combined = parts.into_iter().map(|p| p.to_string()).collect::<String>();
@@ -426,25 +424,7 @@ impl SqlFinder {
 
         let mut result = base_content.to_string();
 
-        if has_unpacked_dict {
-            let re = Regex::new(r"\{[^}]+\}")
-                .expect("Broke the regex format call finder.")
-                .replace_all(&result, "PLACEHOLDER")
-                .to_string();
-        } else {
-            let numbered_re = Regex::new(r"\{(\d+)\}")
-                .expect("Broke the regex format call finder.")
-                .replace_all(&result, |caps: &regex::Captures| {
-                    let index: usize = caps[1].parse().unwrap_or(0);
-
-                    if index < pos_fills.len() {
-                        pos_fills[index].clone()
-                    } else {
-                        "PLACEHOLDER".to_string()
-                    }
-                })
-                .to_string();
-
+        if !has_unpacked_dict {
             for f in pos_fills {
                 result = result.replacen("{}", &f, 1);
             }

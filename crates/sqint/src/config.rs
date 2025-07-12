@@ -135,19 +135,6 @@ impl Config {
         }
     }
 
-    /// Try to find and load configuration from common locations
-    pub fn find_and_load() -> Result<Self, ConfigError> {
-        if let Ok(config) = Self::from_file(PYPROJECT_CONFIG_NAME) {
-            return Ok(config);
-        }
-
-        if let Ok(config) = Self::from_file(DEFAULT_CONFIG_NAME) {
-            return Ok(config);
-        }
-
-        Ok(Self::default())
-    }
-
     /// Merge this config with another, preferring values from the other config
     pub fn merge_with(&mut self, other: Self) {
         // Detection Settings

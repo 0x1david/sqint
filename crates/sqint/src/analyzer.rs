@@ -99,13 +99,11 @@ impl SqlAnalyzer {
 #[derive(Debug, Default)]
 struct SqlError {
     pub reason: String,
-    pub line: usize,
-    pub col: usize,
 }
 
 impl SqlError {
-    const fn new(reason: String, line: usize, col: usize) -> Self {
-        Self { reason, line, col }
+    const fn new(reason: String) -> Self {
+        Self { reason }
     }
 
     fn from_parser_error(e: ParserError) -> Self {
@@ -116,13 +114,7 @@ impl SqlError {
 
                 // if line information is present in msg
                 msg.find(line_marker).map_or_else(
-                    || {
-                        Self::new(
-                            "SQL parsing error with no position information".to_string(),
-                            0,
-                            0,
-                        )
-                    },
+                    || Self::new("SQL parsing error with no position information".to_string()),
                     {
                         |line_start_idx| {
                             let line_num_start = line_start_idx + line_marker.len();
@@ -133,18 +125,11 @@ impl SqlError {
                                     Self::new(
                                         "Malformed error message: missing column information"
                                             .to_string(),
-                                        0,
-                                        0,
                                     )
                                 },
-                                |comma_idx| {
-                                    let line_num_end = line_num_start + comma_idx;
-                                    let col_num_start = line_num_end + col_marker.len();
-                                    let line =
-                                        msg[line_num_start..line_num_end].parse().unwrap_or(0);
-                                    let column = msg[col_num_start..].parse().unwrap_or(0);
+                                |_| {
                                     let reason_msg = msg[..line_start_idx].to_string();
-                                    Self::new(reason_msg, line, column)
+                                    Self::new(reason_msg)
                                 },
                             )
                         }
@@ -152,7 +137,7 @@ impl SqlError {
                 )
             }
             ParserError::RecursionLimitExceeded => {
-                Self::new("Recursion Limit Exceeded".to_string(), 0, 0)
+                Self::new("Recursion Limit Exceeded".to_string())
             }
         }
     }

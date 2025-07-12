@@ -103,51 +103,6 @@ pub enum FinderType {
 }
 
 impl FinderType {
-    pub fn len(&self) -> usize {
-        match self {
-            Self::Str(s) | Self::Int(s) => s.len(),
-            Self::Float(f) => f.to_string().len(),
-            Self::Bool(b) => {
-                if *b {
-                    4
-                } else {
-                    5
-                }
-            }
-            Self::Tuple(vec) => {
-                if vec.is_empty() {
-                    2
-                } else {
-                    2 + vec.iter().map(Self::len).sum::<usize>() + (vec.len() - 1) * 2
-                }
-            }
-            Self::Placeholder => 11,
-            Self::Unhandled => 9,
-        }
-    }
-
-    pub fn truncate_content(&self, max_len: usize) -> String {
-        match self {
-            Self::Str(s) | Self::Int(s) => {
-                if s.len() <= max_len {
-                    s.clone()
-                } else {
-                    format!("{}...", &s[..max_len.saturating_sub(3)])
-                }
-            }
-            _ => {
-                let full_string = self.to_string();
-                if full_string.len() <= max_len {
-                    full_string
-                } else {
-                    format!("{}...", &full_string[..max_len.saturating_sub(3)])
-                }
-            }
-        }
-    }
-    pub fn trunc_default(&self) -> String {
-        self.truncate_content(50)
-    }
     pub fn get_str(&self) -> Option<&str> {
         match self {
             Self::Str(s) => Some(s),

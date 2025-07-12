@@ -1,4 +1,3 @@
-#![allow(dead_code, unused_variables, clippy::multiple_crate_versions)]
 mod assign;
 mod finder_types;
 mod format;
@@ -57,8 +56,6 @@ impl SqlFinder {
             if rf.should_ignore_stmt_at(start_offset) || rf.should_ignore_stmt_at(end_offset) {
                 continue;
             }
-
-            dbg!(stmt);
 
             let stmt_results = match stmt {
                 ast::Stmt::Assign(a) => self.analyze_assignment(a, rf),

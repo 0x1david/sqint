@@ -15,7 +15,6 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
 
     let explicit_files = crate::files::canonicalize_files(explicit_files);
     let found_files = crate::files::canonicalize_files(found_files);
-    let no_of_files = found_files.len() + explicit_files.len();
 
     if found_files.is_empty() && explicit_files.is_empty() {
         always_log!("No target files found in the specified paths.");
