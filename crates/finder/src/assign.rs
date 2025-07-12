@@ -425,7 +425,7 @@ impl SqlFinder {
         if has_unpacked_dict {
             let re = Regex::new(r"\{[^}]+\}")
                 .expect("Broke the regex format call finder.")
-                .replace_all(&result, "{PLACEHOLDER}")
+                .replace_all(&result, "PLACEHOLDER")
                 .to_string();
         } else {
             let numbered_re = Regex::new(r"\{(\d+)\}")
@@ -436,7 +436,7 @@ impl SqlFinder {
                     if index < pos_fills.len() {
                         pos_fills[index].clone()
                     } else {
-                        "{PLACEHOLDER}".to_string()
+                        "PLACEHOLDER".to_string()
                     }
                 })
                 .to_string();

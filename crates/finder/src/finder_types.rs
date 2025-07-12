@@ -174,7 +174,7 @@ impl std::fmt::Display for FinderType {
                 }
                 write!(f, ")")
             }
-            Self::Placeholder => write!(f, "{{PLACEHOLDER}}"),
+            Self::Placeholder => write!(f, "PLACEHOLDER"),
             Self::Unhandled => write!(f, "<unhandled>"),
         }
     }

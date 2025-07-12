@@ -77,13 +77,7 @@ impl Logger {
         let current_level = GLOBAL_LOG_LEVEL.load(Ordering::Relaxed);
         (level as u8) <= current_level
     }
-
     pub fn log_message(level: LogLevel, message: &str, file: &str, line: u32) {
-        let filename = std::path::Path::new(file)
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or(file);
-
         let timestamp = if matches!(level, LogLevel::Debug) {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -94,24 +88,46 @@ impl Logger {
         };
 
         let output = if LogLevel::should_use_color() {
-            format!(
-                "{}{}[{}] {}:{} - {}\x1b[0m",
-                timestamp,
-                level.color_code(),
-                level.as_str(),
-                filename,
-                line,
-                message
-            )
+            match level {
+                LogLevel::Debug | LogLevel::Bail => {
+                    let filename = std::path::Path::new(file)
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or(file);
+                    format!(
+                        "{}{}[{}] {}:{} - {}\x1b[0m",
+                        timestamp,
+                        level.color_code(),
+                        level.as_str(),
+                        filename,
+                        line,
+                        message
+                    )
+                }
+                _ => {
+                    format!("{}{}{}\x1b[0m", timestamp, level.color_code(), message)
+                }
+            }
         } else {
-            format!(
-                "{}[{}] {}:{} - {}",
-                timestamp,
-                level.as_str(),
-                filename,
-                line,
-                message
-            )
+            match level {
+                LogLevel::Debug | LogLevel::Bail => {
+                    let filename = std::path::Path::new(file)
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or(file);
+                    format!(
+                        "{}[{}] {}:{} - {}",
+                        timestamp,
+                        level.as_str(),
+                        filename,
+                        line,
+                        message
+                    )
+                }
+                _ => {
+                    format!("{}[{}] - {}", timestamp, level.as_str(), message)
+                }
+            }
         };
 
         match level {

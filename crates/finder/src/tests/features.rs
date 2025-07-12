@@ -523,7 +523,7 @@ sql = "DELETE FROM temp_data"
 table = "users"
 query = f"select * from {table}"
             "#,
-            vec![("query", "select * from {PLACEHOLDER}")],
+            vec![("query", "select * from PLACEHOLDER")],
             "f-string simple variable substitution",
         );
     }
@@ -538,7 +538,7 @@ query = f"select * from {table} where status = '{status}'"
             "#,
             vec![(
                 "query",
-                "select * from {PLACEHOLDER} where status = '{PLACEHOLDER}'",
+                "select * from PLACEHOLDER where status = 'PLACEHOLDER'",
             )],
             "f-string multiple variables substitution",
         );
@@ -554,7 +554,7 @@ query = f"select * from {table} where price > {min_price}"
             "#,
             vec![(
                 "query",
-                "select * from {PLACEHOLDER} where price > {PLACEHOLDER}",
+                "select * from PLACEHOLDER where price > PLACEHOLDER",
             )],
             "f-string with number substitution",
         );
@@ -632,7 +632,7 @@ query = f"""
             "#,
             vec![(
                 "query",
-                "\n    select \n        id,\n        name,\n        email\n    from {PLACEHOLDER}\n    where status = '{PLACEHOLDER}'\n",
+                "\n    select \n        id,\n        name,\n        email\n    from PLACEHOLDER\n    where status = 'PLACEHOLDER'\n",
             )],
             "multiline f-string substitution",
         );
@@ -646,7 +646,7 @@ columns = ["id", "name", "email"]
 table = "users"
 query = "select {} from {}".format(", ".join(columns), table)
             "#,
-            vec![("query", "select {PLACEHOLDER} from {PLACEHOLDER}")],
+            vec![("query", "select PLACEHOLDER from PLACEHOLDER")],
             "format with join operation substitution",
         );
     }
@@ -671,7 +671,7 @@ query = "select * from {table} where status = '{status}' limit {limit}".format(*
             "#,
             vec![(
                 "query",
-                "select * from {PLACEHOLDER} where status = '{PLACEHOLDER}' limit {PLACEHOLDER}",
+                "select * from PLACEHOLDER where status = 'PLACEHOLDER' limit PLACEHOLDER",
             )],
             "format with dictionary unpacking substitution",
         );
@@ -698,7 +698,7 @@ query = "select * from %s where price > %.2f and quantity = %d" % ("products", 9
 table_name = "UsErS"
 query = f"select * from {table_name.lower()}"
             "#,
-            vec![("query", "select * from {PLACEHOLDER}")],
+            vec![("query", "select * from PLACEHOLDER")],
             "f-string with method call substitution",
         );
     }
@@ -712,7 +712,7 @@ query = "select * from {} join {} on users.id = orders.user_id".format(tables[0]
             "#,
             vec![(
                 "query",
-                "select * from {PLACEHOLDER} join {PLACEHOLDER} on users.id = orders.user_id",
+                "select * from PLACEHOLDER join PLACEHOLDER on users.id = orders.user_id",
             )],
             "format with list indexing substitution",
         );
@@ -725,7 +725,7 @@ query = "select * from {} join {} on users.id = orders.user_id".format(tables[0]
 config = {"table": "customers", "limit": 100}
 query = f"select * from {config['table']} limit {config['limit']}"
             "#,
-            vec![("query", "select * from {PLACEHOLDER} limit {PLACEHOLDER}")],
+            vec![("query", "select * from PLACEHOLDER limit PLACEHOLDER")],
             "f-string with dictionary access substitution",
         );
     }
@@ -738,7 +738,7 @@ prefix = "temp_"
 table = "users"
 query = "select * from {}".format(prefix + table)
             "#,
-            vec![("query", "select * from {PLACEHOLDER}")],
+            vec![("query", "select * from PLACEHOLDER")],
             "format with string concatenation substitution",
         );
     }
@@ -751,7 +751,7 @@ include_deleted = False
 table_suffix = "_all" if include_deleted else ""
 query = f"select * from users{table_suffix}"
             "#,
-            vec![("query", "select * from users{PLACEHOLDER}")],
+            vec![("query", "select * from usersPLACEHOLDER")],
             "f-string with conditional substitution",
         );
     }
@@ -840,7 +840,7 @@ query = "select * from users limit {}".format(20 * 5)
 table = "users"
 sql_fun(f"SELECT * FROM {table} WHERE active = 1")
         "#,
-            vec![("sql_fun", "SELECT * FROM {PLACEHOLDER} WHERE active = 1")],
+            vec![("sql_fun", "SELECT * FROM PLACEHOLDER WHERE active = 1")],
             "function call with f-string",
         );
     }
@@ -918,7 +918,7 @@ else:
 for table in tables:
     also_query_fun(f"SELECT COUNT(*) FROM {table}")
         "#,
-            vec![("also_query_fun", "SELECT COUNT(*) FROM {PLACEHOLDER}")],
+            vec![("also_query_fun", "SELECT COUNT(*) FROM PLACEHOLDER")],
             "function call in loop",
         );
     }
@@ -951,7 +951,7 @@ except Exception:
 user_query = "SELECT * FROM users WHERE id = ?"
 sql_fun(user_query)
         "#,
-            vec![("sql_fun", "{PLACEHOLDER}")],
+            vec![("sql_fun", "PLACEHOLDER")],
             "function call with variable argument",
         );
     }
@@ -962,7 +962,7 @@ sql_fun(user_query)
             r#"query_fun("SELECT id FROM users WHERE id IN ({})".format(",".join([str(i) for i in range(5)])))"#,
             vec![(
                 "query_fun",
-                "SELECT id FROM users WHERE id IN ({PLACEHOLDER})",
+                "SELECT id FROM users WHERE id IN (PLACEHOLDER)",
             )],
             "function call with list comprehension",
         );
@@ -1151,8 +1151,8 @@ class BatchProcessor:
             sql = f"ANALYZE TABLE {table}"
         "#,
             vec![
-                ("query", "SELECT COUNT(*) FROM {PLACEHOLDER}"),
-                ("sql", "ANALYZE TABLE {PLACEHOLDER}"),
+                ("query", "SELECT COUNT(*) FROM PLACEHOLDER"),
+                ("sql", "ANALYZE TABLE PLACEHOLDER"),
             ],
             "loop assignments in class method",
         );
@@ -1270,9 +1270,9 @@ class ParameterizedQueries:
             vec![
                 (
                     "query",
-                    "SELECT * FROM users WHERE role = '{PLACEHOLDER}' AND active = 1",
+                    "SELECT * FROM users WHERE role = 'PLACEHOLDER' AND active = 1",
                 ),
-                ("sql", "SELECT * FROM users WHERE role = '{PLACEHOLDER}'"),
+                ("sql", "SELECT * FROM users WHERE role = 'PLACEHOLDER'"),
                 ("also_query", "SELECT DISTINCT role FROM users"),
             ],
             "assignments in parameterized class method",
@@ -1290,9 +1290,9 @@ class FormattedQueries:
         query = "SELECT COUNT(*) FROM {}".format(table)
         "#,
             vec![
-                ("query", "SELECT {PLACEHOLDER} FROM {PLACEHOLDER}"),
-                ("sql", "DESCRIBE {PLACEHOLDER}"),
-                ("query", "SELECT COUNT(*) FROM {PLACEHOLDER}"),
+                ("query", "SELECT PLACEHOLDER FROM PLACEHOLDER"),
+                ("sql", "DESCRIBE PLACEHOLDER"),
+                ("query", "SELECT COUNT(*) FROM PLACEHOLDER"),
             ],
             "formatted string assignments in class method",
         );
