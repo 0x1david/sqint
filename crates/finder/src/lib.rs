@@ -1,8 +1,8 @@
-mod assign;
 mod finder_types;
 mod format;
 mod preanalysis;
 mod tests;
+mod traversal;
 pub use crate::finder_types::{FinderConfig, SqlExtract, SqlString};
 use logging::{bail_with, error};
 use rustpython_parser::{
@@ -60,15 +60,21 @@ impl SqlFinder {
             let stmt_results = match stmt {
                 ast::Stmt::Assign(a) => self.analyze_assignment(a, rf),
                 ast::Stmt::AnnAssign(a) => self.analyze_annotated_assignment(a, rf),
-                ast::Stmt::For(f) => self.analyze_body_and_orelse(&f.body, &f.orelse, rf),
-                ast::Stmt::AsyncFor(f) => self.analyze_body_and_orelse(&f.body, &f.orelse, rf),
-                ast::Stmt::While(f) => self.analyze_body_and_orelse(&f.body, &f.orelse, rf),
-                ast::Stmt::If(f) => self.analyze_body_and_orelse(&f.body, &f.orelse, rf),
-                ast::Stmt::FunctionDef(f) => self.analyze_stmts(&f.body, rf),
-                ast::Stmt::AsyncFunctionDef(f) => self.analyze_stmts(&f.body, rf),
-                ast::Stmt::ClassDef(f) => self.analyze_stmts(&f.body, rf),
-                ast::Stmt::With(f) => self.analyze_stmts(&f.body, rf),
-                ast::Stmt::AsyncWith(f) => self.analyze_stmts(&f.body, rf),
+
+                ast::Stmt::For(ast::StmtFor { body, orelse, .. })
+                | ast::Stmt::AsyncFor(ast::StmtAsyncFor { body, orelse, .. })
+                | ast::Stmt::While(ast::StmtWhile { body, orelse, .. })
+                | ast::Stmt::If(ast::StmtIf { body, orelse, .. }) => {
+                    self.analyze_body_and_orelse(body, orelse, rf)
+                }
+
+                ast::Stmt::FunctionDef(ast::StmtFunctionDef { body, .. })
+                | ast::Stmt::AsyncFunctionDef(ast::StmtAsyncFunctionDef { body, .. })
+                | ast::Stmt::ClassDef(ast::StmtClassDef { body, .. })
+                | ast::Stmt::With(ast::StmtWith { body, .. })
+                | ast::Stmt::AsyncWith(ast::StmtAsyncWith { body, .. }) => {
+                    self.analyze_stmts(body, rf)
+                }
 
                 ast::Stmt::Try(t) => {
                     self.analyze_try(&t.body, &t.orelse, &t.finalbody, &t.handlers, rf)
