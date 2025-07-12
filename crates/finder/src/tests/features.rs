@@ -1443,4 +1443,36 @@ query = s
             "simple assignment",
         );
     }
+    #[test]
+    fn fstring_sql_join_variables() {
+        harness_find(
+            r#"
+tables = ["users", "orders", "products"]
+columns = ["id", "name", "email"]
+conditions = ["active = 1", "deleted_at IS NULL"]
+
+query = f"SELECT {', '.join(columns)} FROM {' JOIN '.join(tables)} WHERE {' AND '.join(conditions)}"
+        "#,
+            vec![(
+                "query",
+                "SELECT PLACEHOLDER FROM PLACEHOLDER WHERE PLACEHOLDER",
+            )],
+            "f-string SQL with join operations on pre-existing variables",
+        );
+    }
+
+    #[test]
+    fn fstring_sql_join_literals() {
+        harness_find(
+            r#"
+user_id = 123
+query = f"SELECT u.id, u.name, {', '.join(['p.title', 'p.price', 'p.category'])} FROM users u JOIN {' JOIN '.join(['orders o ON u.id = o.user_id', 'products p ON o.product_id = p.id'])} WHERE u.id = {user_id}"
+        "#,
+            vec![(
+                "query",
+                "SELECT u.id, u.name, PLACEHOLDER FROM users u JOIN PLACEHOLDER WHERE u.id = PLACEHOLDER",
+            )],
+            "f-string SQL with join operations on literal lists",
+        );
+    }
 }

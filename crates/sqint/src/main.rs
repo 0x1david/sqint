@@ -10,7 +10,6 @@ use config::{Config, DEFAULT_CONFIG, DEFAULT_CONFIG_NAME};
 use finder::FinderConfig;
 use logging::{Logger, always_log, debug};
 
-//TODO: .join support
 //TODO: Impl all README features
 //TODO: Big Refactor + Tests + Asserts
 fn main() {

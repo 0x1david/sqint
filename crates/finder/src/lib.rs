@@ -58,6 +58,8 @@ impl SqlFinder {
                 continue;
             }
 
+            dbg!(stmt);
+
             let stmt_results = match stmt {
                 ast::Stmt::Assign(a) => self.analyze_assignment(a, rf),
                 ast::Stmt::AnnAssign(a) => self.analyze_annotated_assignment(a, rf),

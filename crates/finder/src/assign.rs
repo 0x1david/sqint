@@ -281,6 +281,7 @@ impl SqlFinder {
                     .iter()
                     .map(|val| self.extract_content(val))
                     .collect();
+                dbg!(&parts);
 
                 parts.map(|parts| {
                     let combined = parts.into_iter().map(|p| p.to_string()).collect::<String>();
@@ -362,7 +363,7 @@ impl SqlFinder {
             ast::Expr::Call(nested_call) => self.extract_call(nested_call),
             ast::Expr::Attribute(ast::ExprAttribute { attr, value, .. }) => match attr.as_str() {
                 "format" => self.extract_format_call(&v.args, &v.keywords, value),
-                _ => self.extract_content(value),
+                _ => Some(FinderType::Placeholder),
             },
             ast::Expr::Name(name) => {
                 if self.config.is_sql_function_name(&name.id) {
