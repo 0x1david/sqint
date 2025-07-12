@@ -3,7 +3,7 @@
 mod tests {
 
     use crate::*;
-    use range::RangeFile;
+    use preanalysis::PreanalyzedFile;
     use rustpython_parser::{
         Parse,
         ast::{self},
@@ -25,12 +25,12 @@ mod tests {
             "also_query_fun".to_string(),
             "outer_func".to_string(),
         ];
-        let class_ctx = vec!["Ok".to_string()];
+        let class_ctx = ["Ok".to_string()];
         SqlFinder::new(FinderConfig::new(&variable_ctx, &func_ctx).into())
     }
 
     fn harness_find(code: &str, expected: Vec<(&str, &str)>, name: &str) {
-        let range_file = RangeFile::from_src(code);
+        let range_file = PreanalyzedFile::from_src(code);
         let parsed = ast::Suite::parse(code, "test.py").expect("Failed to parse");
         let finder = harness_create_test_finder();
         let contexts = finder.analyze_stmts(&parsed, &range_file);
@@ -1396,6 +1396,39 @@ query_fun(
                 ("query_fun", "DELETE FROM expired_sessions"),
             ],
             "SQL strings passed as function keyword arguments",
+        );
+    }
+
+    #[test]
+    fn ignore_pragma_simple() {
+        harness_find(
+            r#"query = "SELECT id, name FROM users WHERE active = 1"  # sqint: ignore "#,
+            vec![],
+            "simple assignment",
+        );
+    }
+
+    #[test]
+    fn ignore_pragma_last_line() {
+        let expected_sql = r#"
+            SELECT 
+                u.id,
+                u.username,
+                u.email,
+                COUNT(o.id) as order_count,
+                SUM(o.total) as total_spent
+            FROM users u
+            LEFT JOIN orders o ON u.id = o.user_id
+            WHERE u.created_at >= '2023-01-01'
+            GROUP BY u.id, u.username, u.email
+            HAVING COUNT(o.id) > 0
+            ORDER BY total_spent DESC
+            LIMIT 100  # sqint: ignore"#;
+
+        harness_find(
+            &format!(r#"query = """{}""""#, expected_sql),
+            vec![],
+            "multiline string assignment",
         );
     }
 }

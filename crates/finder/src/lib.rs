@@ -2,13 +2,13 @@
 mod assign;
 mod finder_types;
 mod format;
-mod range;
+mod preanalysis;
 mod tests;
 pub use crate::finder_types::{FinderConfig, SqlExtract, SqlString};
 use logging::{bail_with, error};
 use rustpython_parser::{
     Parse,
-    ast::{self},
+    ast::{self, Ranged},
 };
 use std::{fs, sync::Arc};
 
@@ -35,7 +35,7 @@ impl SqlFinder {
             .ok()?;
 
         // Create RangeFile and pass it to analyze_stmts
-        let range_file = range::RangeFile::from_src(&source_code);
+        let range_file = preanalysis::PreanalyzedFile::from_src(&source_code);
         let strings = self.analyze_stmts(&parsed, &range_file);
 
         Some(SqlExtract {
@@ -48,10 +48,16 @@ impl SqlFinder {
     pub(crate) fn analyze_stmts(
         &self,
         suite: &ast::Suite,
-        rf: &range::RangeFile,
+        rf: &preanalysis::PreanalyzedFile,
     ) -> Vec<SqlString> {
         let mut results = Vec::new();
         for stmt in suite {
+            let start_offset = stmt.range().start().to_usize();
+            let end_offset = stmt.range().end().to_usize();
+            if rf.should_ignore_stmt_at(start_offset) || rf.should_ignore_stmt_at(end_offset) {
+                continue;
+            }
+
             let stmt_results = match stmt {
                 ast::Stmt::Assign(a) => self.analyze_assignment(a, rf),
                 ast::Stmt::AnnAssign(a) => self.analyze_annotated_assignment(a, rf),
@@ -102,7 +108,7 @@ impl SqlFinder {
         &self,
         body: &Vec<ast::Stmt>,
         orelse: &Vec<ast::Stmt>,
-        range_file: &range::RangeFile,
+        range_file: &preanalysis::PreanalyzedFile,
     ) -> Vec<SqlString> {
         let body_results = self.analyze_stmts(body, range_file);
         let orelse_results = self.analyze_stmts(orelse, range_file);
@@ -115,7 +121,7 @@ impl SqlFinder {
         orelse: &Vec<ast::Stmt>,
         finalbody: &Vec<ast::Stmt>,
         handlers: &[ast::ExceptHandler],
-        range_file: &range::RangeFile,
+        range_file: &preanalysis::PreanalyzedFile,
     ) -> Vec<SqlString> {
         let body_results = self.analyze_stmts(body, range_file);
 

@@ -1,7 +1,7 @@
 #![allow(clippy::needless_collect, clippy::single_match_else)]
 use crate::finder_types::{FinderType, SqlResult};
 use crate::format::format_python_string;
-use crate::range::RangeFile;
+use crate::preanalysis::PreanalyzedFile;
 use crate::{SqlFinder, SqlString};
 use logging::{bail, bail_with};
 use regex::Regex;
@@ -16,7 +16,7 @@ impl SqlFinder {
     pub(super) fn analyze_assignment(
         &self,
         assign: &ast::StmtAssign,
-        range_file: &RangeFile,
+        range_file: &PreanalyzedFile,
     ) -> Vec<SqlString> {
         let mut sql_strings = vec![];
 
@@ -33,7 +33,7 @@ impl SqlFinder {
     pub(super) fn analyze_stmt_expr(
         &self,
         e: &ast::StmtExpr,
-        range_file: &RangeFile,
+        range_file: &PreanalyzedFile,
     ) -> Vec<SqlString> {
         self.process_expr_stmt(&e.value)
             .into_iter()
@@ -44,7 +44,7 @@ impl SqlFinder {
     pub(super) fn analyze_annotated_assignment(
         &self,
         assign: &ast::StmtAnnAssign,
-        range_file: &RangeFile,
+        range_file: &PreanalyzedFile,
     ) -> Vec<SqlString> {
         assign.value.as_ref().map_or_else(Vec::new, |val| {
             self.process_assignment_target(&assign.target, val)
@@ -475,7 +475,7 @@ impl SqlFinder {
     }
 }
 
-fn sql_result_to_string(res: SqlResult, range_file: &RangeFile) -> SqlString {
+fn sql_result_to_string(res: SqlResult, range_file: &PreanalyzedFile) -> SqlString {
     SqlString {
         variable_name: res.variable_name,
         range: range_file.byterange_to_range(res.byte_range),

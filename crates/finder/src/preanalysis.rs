@@ -3,8 +3,9 @@ use std::fmt::Display;
 
 use rangemap::RangeMap;
 use rustpython_parser::text_size::TextRange;
+use std::collections::HashSet;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub struct LineCol {
     line: usize,
     col: usize,
@@ -39,22 +40,69 @@ impl From<TextRange> for ByteRange {
 }
 
 #[derive(Debug, Clone)]
-pub struct RangeFile<'a> {
+struct PragmaMap {
+    // Maps filename to a set of lines to ignore from the analysis
+    ignores: HashSet<usize>,
+}
+
+impl PragmaMap {
+    fn new() -> Self {
+        Self {
+            ignores: HashSet::new(),
+        }
+    }
+
+    fn add_ignore(&mut self, line: usize) {
+        self.ignores.insert(line);
+    }
+
+    pub fn should_ignore_line(&self, line: usize) -> bool {
+        self.ignores.contains(&line)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PreanalyzedFile<'a> {
     // Maps a byte range to the line number.
     map: RangeMap<usize, usize>,
     src: &'a str,
+    pragmas: PragmaMap,
 }
 
-impl<'a> RangeFile<'a> {
+impl<'a> PreanalyzedFile<'a> {
+    pub fn should_ignore_stmt_at(&self, offset: usize) -> bool {
+        let line = self
+            .map
+            .get(&offset)
+            .expect("Shouldn't ever exceed indexed lines");
+        self.pragmas.should_ignore_line(*line)
+    }
     pub fn from_src(src: &'a str) -> Self {
         let mut range_map = RangeMap::new();
+        let mut pragmas = PragmaMap::new();
         let mut line = 1;
         let mut last_line_start = 0;
+
+        // Process line by line to properly handle pragmas
         for (offset, ch) in src.char_indices() {
             if ch == '\n' {
+                // Check current line for pragma
+                let line_text = &src[last_line_start..offset];
+                if Self::line_has_pragma(line_text) {
+                    pragmas.add_ignore(line);
+                }
+
                 range_map.insert(last_line_start..(offset + 1), line);
                 line += 1;
                 last_line_start = offset + 1;
+            }
+        }
+
+        // Handle last line if no trailing newline
+        if last_line_start < src.len() {
+            let line_text = &src[last_line_start..];
+            if Self::line_has_pragma(line_text) {
+                pragmas.add_ignore(line);
             }
         }
 
@@ -63,7 +111,19 @@ impl<'a> RangeFile<'a> {
         Self {
             map: range_map,
             src,
+            pragmas,
         }
+    }
+
+    fn line_has_pragma(line: &str) -> bool {
+        // Look for comment and check if it contains sqint: ignore
+        if let Some(comment_pos) = line.find('#') {
+            let comment = &line[comment_pos + 1..].trim();
+            return comment.starts_with("sqint: ignore")
+                || comment.starts_with("sqint:ignore")
+                || comment.contains("sqint: ignore");
+        }
+        false
     }
 
     pub fn offset_to_linecol(&self, offset: usize) -> LineCol {

@@ -5,7 +5,7 @@ use globset::{Glob, GlobSet, GlobSetBuilder};
 use logging::{always_log, error};
 use regex::Regex;
 
-use crate::range::ByteRange;
+use crate::preanalysis::ByteRange;
 
 // Internal result type for processing
 #[derive(Debug, Clone)]
@@ -26,7 +26,7 @@ pub struct SqlExtract {
 pub struct SqlString {
     pub variable_name: String,
     pub sql_content: String,
-    pub range: crate::range::Range,
+    pub range: crate::preanalysis::Range,
 }
 
 impl SqlString {
