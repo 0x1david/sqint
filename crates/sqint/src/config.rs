@@ -18,6 +18,7 @@ pub struct Config {
 
     // File Processing
     pub file_patterns: Vec<String>,
+    pub raw_sql_file_patterns: Vec<String>,
     pub exclude_patterns: Vec<String>,
     pub respect_gitignore: bool,
     pub respect_global_gitignore: bool,
@@ -72,6 +73,7 @@ impl Default for Config {
                 "*.pyi".to_string(),
                 "*.ipynb".to_string(),
             ],
+            raw_sql_file_patterns: vec!["*.sql".to_string()],
             exclude_patterns: vec![],
             respect_gitignore: true,
             respect_global_gitignore: false,
@@ -148,6 +150,9 @@ impl Config {
         // File Processing
         if !other.file_patterns.is_empty() {
             self.file_patterns = other.file_patterns;
+        }
+        if !other.raw_sql_file_patterns.is_empty() {
+            self.raw_sql_file_patterns = other.raw_sql_file_patterns;
         }
         if !other.exclude_patterns.is_empty() {
             self.exclude_patterns = other.exclude_patterns;

@@ -50,6 +50,7 @@ impl Cli {
             dialect_mappings: cfg.dialect_mappings,
             exclude_patterns: cfg.exclude_patterns,
             file_patterns: cfg.file_patterns,
+            raw_sql_file_patterns: cfg.raw_sql_file_patterns,
             function_contexts: cfg.function_contexts,
             include_hidden_files: self.include_hidden_files || cfg.include_hidden_files,
             include_staged: self.include_staged || cfg.include_staged,
@@ -109,6 +110,10 @@ pub struct CheckArgs {
     /// File patterns to include (e.g., "*.py,*.pyi")
     #[arg(long, value_delimiter = ',')]
     pub file_patterns: Vec<String>,
+
+    /// File patterns that are raw sql to parse
+    #[arg(long, value_delimiter = ',')]
+    pub sql_patterns: Vec<PathBuf>,
 
     /// Variable name patterns to look for (e.g., "*query*,*sql*")
     #[arg(long, value_delimiter = ',')]

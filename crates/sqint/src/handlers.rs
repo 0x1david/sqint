@@ -10,26 +10,21 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
         &config.variable_contexts,
         &config.function_contexts,
     ));
-
     let (found_files, explicit_files) = crate::files::collect_files(&cli.check_args.paths, config);
-
     let explicit_files = crate::files::canonicalize_files(explicit_files);
     let found_files = crate::files::canonicalize_files(found_files);
-
     if found_files.is_empty() && explicit_files.is_empty() {
         always_log!("No target files found in the specified paths.");
         return;
     }
-
     let target_files: Vec<String> = crate::files::filter_incremental_files(&found_files, config);
-    let target_files: Vec<String> = crate::files::filter_file_pats(target_files, config)
-        .into_iter()
-        .chain(explicit_files)
-        .collect();
+    let (target_files, sql_files): (Vec<String>, Vec<String>) =
+        crate::files::filter_file_pats(target_files, config);
+    let target_files: Vec<String> = target_files.into_iter().chain(explicit_files).collect();
+    let sql_files: Vec<String> = sql_files.into_iter().collect();
 
-    let no_remaining = target_files.len();
-
-    if no_remaining == 0 {
+    let total_files = target_files.len() + sql_files.len();
+    if total_files == 0 {
         always_log!("No files to process after filtering.");
         return;
     }
@@ -45,35 +40,72 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
             config.max_threads
         };
 
-        let chunk_size = std::cmp::max(1, target_files.len() / max_threads);
-        target_files
-            .chunks(chunk_size)
-            .map(|chunk| {
-                let chunk_vec = chunk.to_vec();
-                let cfg = cfg.clone();
-                let app_cfg = config.clone();
-                thread::spawn(move || {
-                    for file_path in chunk_vec {
-                        process_file(&file_path, cfg.clone(), &app_cfg.clone());
-                    }
+        // Process Python files
+        if !target_files.is_empty() {
+            let chunk_size = std::cmp::max(1, target_files.len() / max_threads);
+            target_files
+                .chunks(chunk_size)
+                .map(|chunk| {
+                    let chunk_vec = chunk.to_vec();
+                    let cfg = cfg.clone();
+                    let app_cfg = config.clone();
+                    thread::spawn(move || {
+                        for file_path in chunk_vec {
+                            process_file(&file_path, cfg.clone(), &app_cfg.clone(), false);
+                        }
+                    })
                 })
-            })
-            .collect::<Vec<_>>()
-            .into_iter()
-            .for_each(|handle| handle.join().unwrap());
+                .collect::<Vec<_>>()
+                .into_iter()
+                .for_each(|handle| handle.join().unwrap());
+        }
+
+        // Process SQL files
+        if !sql_files.is_empty() {
+            let chunk_size = std::cmp::max(1, sql_files.len() / max_threads);
+            sql_files
+                .chunks(chunk_size)
+                .map(|chunk| {
+                    let chunk_vec = chunk.to_vec();
+                    let cfg = cfg.clone();
+                    let app_cfg = config.clone();
+                    thread::spawn(move || {
+                        for file_path in chunk_vec {
+                            process_file(&file_path, cfg.clone(), &app_cfg.clone(), true);
+                        }
+                    })
+                })
+                .collect::<Vec<_>>()
+                .into_iter()
+                .for_each(|handle| handle.join().unwrap());
+        }
     } else {
         for file_path in &target_files {
-            process_file(file_path, cfg.clone(), &config.clone());
+            process_file(file_path, cfg.clone(), &config.clone(), false);
+        }
+
+        for file_path in &sql_files {
+            process_file(file_path, cfg.clone(), &config.clone(), true);
         }
     }
 
-    always_log!("Analysis complete. Processed {} files.", target_files.len());
+    always_log!(
+        "Analysis complete. Processed {} files ({} Python, {} SQL).",
+        total_files,
+        target_files.len(),
+        sql_files.len()
+    );
 }
 
-fn process_file(file_path: &str, cfg: Arc<crate::FinderConfig>, app_cfg: &Arc<crate::Config>) {
+fn process_file(
+    file_path: &str,
+    cfg: Arc<crate::FinderConfig>,
+    app_cfg: &Arc<crate::Config>,
+    is_raw_sql: bool,
+) {
     let mut sql_finder = finder::SqlFinder::new(cfg);
 
-    let Some(sql_extract) = sql_finder.analyze_file(file_path) else {
+    let Some(sql_extract) = sql_finder.analyze_file(file_path, is_raw_sql) else {
         return;
     };
 

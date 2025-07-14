@@ -1,6 +1,6 @@
 mod finder_types;
 mod format;
-mod preanalysis;
+pub mod preanalysis;
 mod tests;
 mod traversal;
 pub use crate::finder_types::{FinderConfig, SqlExtract, SqlString};
@@ -22,7 +22,15 @@ impl SqlFinder {
     }
 
     #[must_use]
-    pub fn analyze_file(&mut self, file_path: &str) -> Option<SqlExtract> {
+    pub fn analyze_file(&mut self, file_path: &str, is_raw_sql: bool) -> Option<SqlExtract> {
+        if is_raw_sql {
+            self.analyze_sql_file(file_path)
+        } else {
+            self.analyze_python_file(file_path)
+        }
+    }
+
+    fn analyze_python_file(&mut self, file_path: &str) -> Option<SqlExtract> {
         let source_code = fs::read_to_string(file_path)
             .inspect_err(|e| error!("Failed to read file '{file_path}': {e}"))
             .ok()?;
@@ -33,9 +41,55 @@ impl SqlFinder {
             })
             .ok()?;
 
-        // Create RangeFile and pass it to analyze_stmts
         let range_file = preanalysis::PreanalyzedFile::from_src(&source_code);
         let strings = self.analyze_stmts(&parsed, &range_file);
+
+        Some(SqlExtract::new(file_path.to_string(), strings))
+    }
+    fn analyze_sql_file(&mut self, file_path: &str) -> Option<SqlExtract> {
+        let source_code = fs::read_to_string(file_path)
+            .inspect_err(|e| error!("Failed to read file '{file_path}': {e}"))
+            .ok()?;
+
+        let mut strings = Vec::new();
+        let mut current_pos = 0;
+        let mut line_num = 1;
+        let mut col_num = 1;
+
+        for (index, sql_segment) in source_code.split(';').enumerate() {
+            let trimmed = sql_segment.trim();
+            if !trimmed.is_empty() {
+                let start_line = line_num;
+                let start_col = col_num;
+
+                let range = crate::preanalysis::Range {
+                    start: crate::preanalysis::LineCol::new(start_line, start_col, 0),
+                };
+
+                strings.push(SqlString::new(
+                    format!("sql_statement_{}", index + 1),
+                    trimmed.to_string(),
+                    range,
+                ));
+            }
+
+            // Update position for next segment
+            for ch in sql_segment.chars() {
+                if ch == '\n' {
+                    line_num += 1;
+                    col_num = 1;
+                } else {
+                    col_num += 1;
+                }
+            }
+
+            // Account for the semicolon delimiter (except for the last segment)
+            if current_pos + sql_segment.len() < source_code.len() {
+                col_num += 1;
+            }
+
+            current_pos += sql_segment.len() + 1;
+        }
 
         Some(SqlExtract::new(file_path.to_string(), strings))
     }

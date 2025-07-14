@@ -152,13 +152,26 @@ pub fn canonicalize_files(files: Vec<std::path::PathBuf>) -> Vec<String> {
         .collect()
 }
 
-pub fn filter_file_pats(files: Vec<String>, cfg: &Config) -> Vec<String> {
+/// Filters exclude files and returns files matching include patterns and files matching raw sql patterns
+pub fn filter_file_pats(files: Vec<String>, cfg: &Config) -> (Vec<String>, Vec<String>) {
     let include_pats: GlobSet = slice_to_glob(&cfg.file_patterns, "file_patterns");
+    let sql_pats: GlobSet = slice_to_glob(&cfg.raw_sql_file_patterns, "raw_sql_file_patterns");
     let exclude_pats: GlobSet = slice_to_glob(&cfg.exclude_patterns, "exclude_patterns");
-    files
-        .into_iter()
-        .filter(|f| include_pats.is_match(f) && !exclude_pats.is_match(f))
-        .collect()
+
+    let mut include_files = Vec::new();
+    let mut sql_files = Vec::new();
+
+    for file in files {
+        if !exclude_pats.is_match(&file) {
+            if include_pats.is_match(&file) {
+                include_files.push(file);
+            } else if sql_pats.is_match(&file) {
+                sql_files.push(file);
+            }
+        }
+    }
+
+    (include_files, sql_files)
 }
 
 fn slice_to_glob(patterns: &[String], log_ctx: &str) -> GlobSet {

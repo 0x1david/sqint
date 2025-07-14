@@ -262,7 +262,7 @@ impl SqlFinder {
 
     fn extract_content(&self, expr: &ast::Expr) -> Option<FinderType> {
         match expr {
-            ast::Expr::Constant(c) => Some(Self::extract_expr_const(c)),
+            ast::Expr::Constant(c) => Self::extract_expr_const(c),
             ast::Expr::Call(c) => self.extract_call(c),
             ast::Expr::FormattedValue(f) => self.extract_content(&f.value),
             ast::Expr::BinOp(b) => self.extract_from_bin_op(b),
@@ -291,10 +291,10 @@ impl SqlFinder {
         match &v.op {
             ast::Operator::Mod => {
                 let expr_content = self.extract_content(&v.left)?;
-
                 let (args, kwargs) = match &*v.right {
-                    ast::Expr::Constant(c) => (vec![Self::extract_expr_const(c)], vec![]),
-
+                    ast::Expr::Constant(c) => {
+                        (Self::extract_expr_const(c).into_iter().collect(), vec![])
+                    }
                     ast::Expr::Tuple(ast::ExprTuple { elts, .. })
                     | ast::Expr::List(ast::ExprList { elts, .. }) => {
                         let args = elts
@@ -311,19 +311,16 @@ impl SqlFinder {
                             .filter_map(|e| self.extract_content(e))
                             .map(|k| k.to_string())
                             .collect();
-
                         let values: Vec<FinderType> = d
                             .values
                             .iter()
                             .filter_map(|e| self.extract_content(e))
                             .collect();
-
                         let kwargs: Vec<_> = keys.into_iter().zip(values).collect();
                         (vec![], kwargs)
                     }
                     _ => bail_with!((vec![], vec![]), "Unhandled rhs expr type: {:?}", v.right),
                 };
-
                 match expr_content {
                     FinderType::Str(fmt_string) => {
                         format_python_string(&fmt_string, &args, &kwargs).map(FinderType::Str)
@@ -380,32 +377,24 @@ impl SqlFinder {
         let mut pos_fills = vec![];
         let mut kw_fills = vec![];
         let mut has_unpacked_dict = false;
-
         for a in args {
             let parsed = match a {
-                ast::Expr::Constant(c) => vec![Self::extract_expr_const(c)],
+                ast::Expr::Constant(c) => Self::extract_expr_const(c).into_iter().collect(),
                 ast::Expr::Subscript(_) | ast::Expr::Name(_) | ast::Expr::Call(_) => {
                     vec![FinderType::Placeholder]
                 }
-
                 ast::Expr::List(els) => els
                     .elts
                     .iter()
                     .filter_map(|e| self.extract_content(e))
                     .collect(),
-
                 ast::Expr::BinOp(b) => self
                     .extract_from_bin_op(b)
-                    .map_or_else(|| vec![FinderType::Unhandled], |content| vec![content]),
-
-                _ => bail_with!(
-                    vec![FinderType::Unhandled],
-                    "Unhandled value in args: {a:?}"
-                ),
+                    .map_or_else(|| vec![], |content| vec![content]),
+                _ => bail_with!(vec![], "Unhandled value in args: {a:?}"),
             };
             pos_fills.extend(parsed.iter().map(std::string::ToString::to_string));
         }
-
         for kw in kwargs {
             match &kw.arg {
                 Some(name) => {
@@ -416,40 +405,35 @@ impl SqlFinder {
                 None => has_unpacked_dict = true,
             }
         }
-
         let base_content = self.extract_content(value)?;
-
         let mut result = base_content.to_string();
-
         if !has_unpacked_dict {
             for f in pos_fills {
                 result = result.replacen("{}", &f, 1);
             }
-
             for (kw_name, val) in &kw_fills {
                 let pat = format!("{{{kw_name}}}");
                 result = result.replace(&pat, &val.to_string());
             }
         }
-
         Some(FinderType::Str(result))
     }
 
-    fn extract_expr_const(c: &ast::ExprConstant<TextRange>) -> FinderType {
+    fn extract_expr_const(c: &ast::ExprConstant<TextRange>) -> Option<FinderType> {
         Self::extract_const(&c.value)
     }
 
-    fn extract_const(c: &ast::Constant) -> FinderType {
+    fn extract_const(c: &ast::Constant) -> Option<FinderType> {
         let result = match c {
-            ast::Constant::Str(s) => FinderType::Str(s.clone()),
-            ast::Constant::Int(i) => FinderType::Int(i.to_string()),
-            ast::Constant::Bool(b) => FinderType::Bool(*b),
-            ast::Constant::Float(f) => FinderType::Float(*f),
-            ast::Constant::None => FinderType::Unhandled,
-            ast::Constant::Tuple(t) => {
-                FinderType::Tuple(t.iter().map(Self::extract_const).collect())
-            }
-            _ => bail_with!(FinderType::Unhandled, "Unhandled Constant: {:?}", c),
+            ast::Constant::Str(s) => Some(FinderType::Str(s.clone())),
+            ast::Constant::Int(i) => Some(FinderType::Int(i.to_string())),
+            ast::Constant::Bool(b) => Some(FinderType::Bool(*b)),
+            ast::Constant::Float(f) => Some(FinderType::Float(*f)),
+            ast::Constant::None => None,
+            ast::Constant::Tuple(t) => Some(FinderType::Tuple(
+                t.iter().filter_map(Self::extract_const).collect(),
+            )),
+            _ => bail_with!(None, "Unhandled Constant: {:?}", c),
         };
 
         result

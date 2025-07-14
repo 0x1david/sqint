@@ -57,6 +57,17 @@ pub struct SqlString {
 }
 
 impl SqlString {
+    pub fn new(
+        variable_name: String,
+        sql_content: String,
+        range: crate::preanalysis::Range,
+    ) -> Self {
+        Self {
+            variable_name,
+            sql_content,
+            range,
+        }
+    }
     fn truncate_content(&self, len: usize) -> &str {
         &self.sql_content[..self.sql_content.len().min(len)]
     }
@@ -126,7 +137,6 @@ pub enum FinderType {
     Bool(bool),
     Tuple(Vec<FinderType>),
     Placeholder,
-    Unhandled,
 }
 
 impl FinderType {
@@ -160,7 +170,6 @@ impl std::fmt::Display for FinderType {
                 write!(f, ")")
             }
             Self::Placeholder => write!(f, "PLACEHOLDER"),
-            Self::Unhandled => write!(f, "<unhandled>"),
         }
     }
 }

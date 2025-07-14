@@ -11,6 +11,16 @@ pub struct LineCol {
     byte_offset: usize,
 }
 
+impl LineCol {
+    pub fn new(line: usize, col: usize, byte_offset: usize) -> Self {
+        Self {
+            line,
+            col,
+            byte_offset,
+        }
+    }
+}
+
 impl Display for LineCol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:{}:", self.line, self.col)
