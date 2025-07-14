@@ -9,6 +9,12 @@ use config::{Config, DEFAULT_CONFIG, DEFAULT_CONFIG_NAME};
 use finder::FinderConfig;
 use logging::{Logger, always_log, debug};
 
+//TODO: Brainstorm about what string should be shown in the final log. Probably the RAW form that
+// is used by the sqlparser itself?
+//TODO: Ability to add raw sql files to validate
+//TODO: Better reading of logs -> File - line - variable -> err msg -> query
+//TODO: Some dynamics are being placed simply as a single PLACEHOLDER
+//  e.g. query = self.fetch_condition_query
 //TODO: Add total parsed/error counts
 //TODO: Impl all README features
 //TODO: Big Refactor + Tests + Asserts
