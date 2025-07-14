@@ -50,25 +50,23 @@ impl SqlFinder {
         let source_code = fs::read_to_string(file_path)
             .inspect_err(|e| error!("Failed to read file '{file_path}': {e}"))
             .ok()?;
-
         let mut strings = Vec::new();
         let mut current_pos = 0;
         let mut line_num = 1;
         let mut col_num = 1;
 
         for (index, sql_segment) in source_code.split(';').enumerate() {
-            let trimmed = sql_segment.trim();
-            if !trimmed.is_empty() {
+            let cleaned = Self::trim_sql_comments(sql_segment);
+
+            if !cleaned.is_empty() {
                 let start_line = line_num;
                 let start_col = col_num;
-
                 let range = crate::preanalysis::Range {
                     start: crate::preanalysis::LineCol::new(start_line, start_col, 0),
                 };
-
                 strings.push(SqlString::new(
                     format!("sql_statement_{}", index + 1),
-                    trimmed.to_string(),
+                    cleaned,
                     range,
                 ));
             }
@@ -87,11 +85,40 @@ impl SqlFinder {
             if current_pos + sql_segment.len() < source_code.len() {
                 col_num += 1;
             }
-
             current_pos += sql_segment.len() + 1;
         }
 
         Some(SqlExtract::new(file_path.to_string(), strings))
+    }
+
+    fn trim_sql_comments(sql: &str) -> String {
+        let lines: Vec<&str> = sql.lines().collect();
+        let mut start_idx = 0;
+        let mut end_idx = lines.len();
+
+        // Find first non-comment, non-empty line
+        for (i, line) in lines.iter().enumerate() {
+            let trimmed = line.trim();
+            if !trimmed.is_empty() && !trimmed.starts_with("--") && !trimmed.starts_with("#") {
+                start_idx = i;
+                break;
+            }
+        }
+
+        // Find last non-comment, non-empty line
+        for (i, line) in lines.iter().enumerate().rev() {
+            let trimmed = line.trim();
+            if !trimmed.is_empty() && !trimmed.starts_with("--") && !trimmed.starts_with("#") {
+                end_idx = i + 1;
+                break;
+            }
+        }
+
+        if start_idx >= end_idx {
+            return String::new();
+        }
+
+        lines[start_idx..end_idx].join("\n").trim().to_string()
     }
 
     #[allow(clippy::too_many_lines)]
