@@ -18,15 +18,12 @@ impl SqlFinder {
         range_file: &PreanalyzedFile,
     ) -> Vec<SqlString> {
         let mut sql_strings = vec![];
-        if let ast::Expr::Name(_) = *assign.value {
-            return sql_strings;
-        }
 
         assign.targets.iter().for_each(|target| {
             sql_strings = self
                 .process_assignment_target(target, &assign.value)
                 .into_iter()
-                .map(|result| sql_result_to_string(result, range_file))
+                .filter_map(|result| sql_result_to_string(result, range_file))
                 .collect();
         });
         sql_strings
@@ -39,7 +36,7 @@ impl SqlFinder {
     ) -> Vec<SqlString> {
         self.process_expr_stmt(&e.value)
             .into_iter()
-            .map(|result| sql_result_to_string(result, range_file))
+            .filter_map(|result| sql_result_to_string(result, range_file))
             .collect()
     }
 
@@ -51,7 +48,7 @@ impl SqlFinder {
         assign.value.as_ref().map_or_else(Vec::new, |val| {
             self.process_assignment_target(&assign.target, val)
                 .into_iter()
-                .map(|result| sql_result_to_string(result, range_file))
+                .filter_map(|result| sql_result_to_string(result, range_file))
                 .collect()
         })
     }
@@ -459,10 +456,13 @@ impl SqlFinder {
     }
 }
 
-fn sql_result_to_string(res: SqlResult, range_file: &PreanalyzedFile) -> SqlString {
-    SqlString {
+fn sql_result_to_string(res: SqlResult, range_file: &PreanalyzedFile) -> Option<SqlString> {
+    if res.content.is_placeholder() {
+        return None;
+    }
+    Some(SqlString {
         variable_name: res.variable_name,
         range: range_file.byterange_to_range(res.byte_range),
         sql_content: res.content.to_string(),
-    }
+    })
 }

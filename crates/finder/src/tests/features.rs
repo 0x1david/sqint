@@ -1475,4 +1475,15 @@ query = f"SELECT u.id, u.name, {', '.join(['p.title', 'p.price', 'p.category'])}
             "f-string SQL with join operations on literal lists",
         );
     }
+
+    #[test]
+    fn fstring_another_dynamic_var() {
+        harness_find(
+            r#"
+query = not_sql % (days, days)
+"#,
+            vec![],
+            "f-string SQL with join operations on literal lists",
+        );
+    }
 }

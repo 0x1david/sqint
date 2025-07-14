@@ -37,10 +37,7 @@ impl SqlFinder {
         let range_file = preanalysis::PreanalyzedFile::from_src(&source_code);
         let strings = self.analyze_stmts(&parsed, &range_file);
 
-        Some(SqlExtract {
-            file_path: file_path.to_string(),
-            strings,
-        })
+        Some(SqlExtract::new(file_path.to_string(), strings))
     }
 
     #[allow(clippy::too_many_lines)]

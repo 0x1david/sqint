@@ -13,7 +13,7 @@ pub struct LineCol {
 
 impl Display for LineCol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "line {}, column {}", self.line, self.col)
+        write!(f, "{}:{}:", self.line, self.col)
     }
 }
 

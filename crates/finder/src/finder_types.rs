@@ -1,5 +1,6 @@
-use std::fmt;
 use std::ops::{Add, Div, Mul, Sub};
+use std::path::{Path, PathBuf};
+use std::{env, fmt};
 
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use logging::{always_log, error};
@@ -19,6 +20,32 @@ pub struct SqlResult {
 pub struct SqlExtract {
     pub file_path: String,
     pub strings: Vec<SqlString>,
+    pub rel_path: String,
+}
+
+impl SqlExtract {
+    pub fn new(file_path: String, strings: Vec<SqlString>) -> Self {
+        let cwd = env::current_dir().expect("Can't get cwd, this is likely a permissions issue.");
+        let cwd_name = cwd
+            .file_name()
+            .expect("Current directory should have a name");
+
+        let relative_part = Path::new(&file_path)
+            .strip_prefix(&cwd)
+            .expect("Should always be able to strip prefix cwd from curr_file.");
+
+        let mut full_rel_path = PathBuf::new();
+        full_rel_path.push(cwd_name);
+        full_rel_path.push(relative_part);
+
+        let rel_path = full_rel_path.to_string_lossy().to_string();
+
+        Self {
+            file_path,
+            strings,
+            rel_path,
+        }
+    }
 }
 
 /// Represents a detected SQL variable
@@ -108,6 +135,9 @@ impl FinderType {
             Self::Str(s) => Some(s),
             _ => None,
         }
+    }
+    pub fn is_placeholder(&self) -> bool {
+        matches!(self, Self::Placeholder)
     }
 }
 

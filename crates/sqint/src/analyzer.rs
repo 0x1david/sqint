@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::env;
+use std::path::Path;
 
 use sqlparser::dialect::{
     AnsiDialect, BigQueryDialect, ClickHouseDialect, DuckDbDialect, GenericDialect, HiveDialect,
@@ -66,7 +68,7 @@ impl SqlAnalyzer {
         extract
             .strings
             .iter()
-            .for_each(|sql_string| self.analyze_sql_string(sql_string, &extract.file_path));
+            .for_each(|sql_string| self.analyze_sql_string(sql_string, &extract.rel_path));
     }
 
     fn analyze_sql_string(&self, sql_string: &SqlString, filename: &str) {
@@ -76,10 +78,10 @@ impl SqlAnalyzer {
             Ok(_) => info!("Valid sql string: `{}`", sql_string.sql_content),
             Err(e) => {
                 error!(
-                    "Invalid sql literal `{}` in {} at {}: `{}` => {}",
-                    sql_string.variable_name,
+                    "./{}:{}:{}: `{}` => {}",
                     filename,
                     sql_string.range.start,
+                    sql_string.variable_name,
                     sql_string.sql_content,
                     SqlError::from_parser_error(e).reason
                 );
