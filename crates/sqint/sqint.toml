@@ -74,4 +74,3 @@ param_markers = [
 [dialect_mappings]
 "NOTNULL" = "NOT NULL"
 "ISNULL" = "IS NULL"
-"xxx" = "Apple"
