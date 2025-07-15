@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-use std::env;
-use std::path::Path;
 
 use sqlparser::dialect::{
     AnsiDialect, BigQueryDialect, ClickHouseDialect, DuckDbDialect, GenericDialect, HiveDialect,
@@ -11,7 +9,7 @@ use sqlparser::dialect::{
 use sqlparser::parser::{Parser, ParserError};
 
 use finder::{SqlExtract, SqlString};
-use logging::{error, info, sql_error, sql_info};
+use logging::{sql_error, sql_info};
 
 #[derive(Debug, Clone)]
 pub enum SqlDialect {
@@ -76,7 +74,13 @@ impl SqlAnalyzer {
 
         match Parser::parse_sql(&*self.dialect, &filled_sql) {
             Ok(_) => {
-                sql_info!("Valid sql string: `{}`", sql_string.sql_content);
+                sql_info!(
+                    "./{}:{}:{}: Valid sql string: `{}`",
+                    filename,
+                    sql_string.range.start,
+                    sql_string.variable_name,
+                    filled_sql
+                );
             }
             Err(e) => {
                 sql_error!(
@@ -84,7 +88,7 @@ impl SqlAnalyzer {
                     filename,
                     sql_string.range.start,
                     sql_string.variable_name,
-                    sql_string.sql_content,
+                    filled_sql,
                     SqlError::from_parser_error(e).reason
                 );
             }

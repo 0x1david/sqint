@@ -9,8 +9,6 @@ use config::{Config, DEFAULT_CONFIG, DEFAULT_CONFIG_NAME};
 use finder::FinderConfig;
 use logging::{Logger, always_log, debug};
 
-//TODO: Brainstorm about what string should be shown in the final log. Probably the RAW form that
-// is used by the sqlparser itself?
 //TODO: Impl all README features
 //TODO: Big Refactor + Tests + Asserts
 fn main() {

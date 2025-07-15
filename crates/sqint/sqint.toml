@@ -7,11 +7,11 @@ variable_contexts= [
 
 # Function names with arguments to validate for (methods and functions that execute SQL)
 function_contexts = [
-    "fetchall",
-    "execute", 
-    "fetchone",
-    "select",
-    "fetch_records"
+    "*fetchall",
+    "*execute", 
+    "*fetchone",
+    "*select",
+    "*fetch_records"
 ]
 
 # Class names to parse through
@@ -74,3 +74,4 @@ param_markers = [
 [dialect_mappings]
 "NOTNULL" = "NOT NULL"
 "ISNULL" = "IS NULL"
+"xxx" = "Apple"
