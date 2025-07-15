@@ -90,7 +90,7 @@ pub fn handle_check(config: &Arc<crate::Config>, cli: &crate::Cli) {
     }
 
     always_log!(
-        "Analysis complete. Processed {} files ({} Python, {} SQL).",
+        "Sqint: Processed {} files ({} Python, {} SQL).",
         total_files,
         target_files.len(),
         sql_files.len()

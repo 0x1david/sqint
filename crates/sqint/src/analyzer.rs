@@ -11,7 +11,7 @@ use sqlparser::dialect::{
 use sqlparser::parser::{Parser, ParserError};
 
 use finder::{SqlExtract, SqlString};
-use logging::{error, info};
+use logging::{error, info, sql_error, sql_info};
 
 #[derive(Debug, Clone)]
 pub enum SqlDialect {
@@ -75,9 +75,11 @@ impl SqlAnalyzer {
         let filled_sql = self.fill_placeholders(&sql_string.sql_content);
 
         match Parser::parse_sql(&*self.dialect, &filled_sql) {
-            Ok(_) => info!("Valid sql string: `{}`", sql_string.sql_content),
+            Ok(_) => {
+                sql_info!("Valid sql string: `{}`", sql_string.sql_content);
+            }
             Err(e) => {
-                error!(
+                sql_error!(
                     "./{}:{}:{}: `{}` => {}",
                     filename,
                     sql_string.range.start,

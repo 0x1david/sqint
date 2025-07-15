@@ -2,11 +2,13 @@ use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use std::io::{self, Write};
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 
 static GLOBAL_LOG_LEVEL: AtomicU8 = AtomicU8::new(LogLevel::Error as u8);
 static LOGGER_INITIALIZED: OnceLock<()> = OnceLock::new();
 static HAS_ERROR_OCCURRED: AtomicBool = AtomicBool::new(false);
+static SQL_ERROR_TOTAL_CNT: AtomicU64 = AtomicU64::new(0);
+static SQL_VAR_TOTAL_CNT: AtomicU64 = AtomicU64::new(0);
 
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default, ValueEnum,
@@ -153,6 +155,23 @@ impl Logger {
         i32::from(Self::has_error_occurred())
     }
 
+    // SQL counter methods
+    pub fn increment_sql_error_count() {
+        SQL_ERROR_TOTAL_CNT.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn increment_sql_var_count() {
+        SQL_VAR_TOTAL_CNT.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn get_sql_error_count() -> u64 {
+        SQL_ERROR_TOTAL_CNT.load(Ordering::Relaxed)
+    }
+
+    pub fn get_sql_var_count() -> u64 {
+        SQL_VAR_TOTAL_CNT.load(Ordering::Relaxed)
+    }
+
     #[cfg(test)]
     pub fn reset_error_state() {
         HAS_ERROR_OCCURRED.store(false, Ordering::Relaxed);
@@ -195,6 +214,15 @@ macro_rules! error {
 }
 
 #[macro_export]
+macro_rules! sql_error{
+    ($fmt:expr $(, $($arg:tt)*)?) => {
+        $crate::Logger::increment_sql_error_count();
+        $crate::Logger::increment_sql_var_count();
+        $crate::log!($crate::LogLevel::Error, $fmt $(, $($arg)*)?)
+    };
+}
+
+#[macro_export]
 macro_rules! bail {
     ($return_value:expr, $fmt:expr $(, $($arg:tt)*)?) => {{
         $crate::log!($crate::LogLevel::Bail, $fmt $(, $($arg)*)?);
@@ -224,6 +252,13 @@ macro_rules! info {
     };
 }
 
+#[macro_export]
+macro_rules! sql_info {
+    ($fmt:expr $(, $($arg:tt)*)?) => {
+        $crate::Logger::increment_sql_var_count();
+        $crate::log!($crate::LogLevel::Info, $fmt $(, $($arg)*)?);
+    };
+}
 #[macro_export]
 macro_rules! debug {
     ($fmt:expr $(, $($arg:tt)*)?) => {

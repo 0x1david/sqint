@@ -11,7 +11,6 @@ use logging::{Logger, always_log, debug};
 
 //TODO: Brainstorm about what string should be shown in the final log. Probably the RAW form that
 // is used by the sqlparser itself?
-//TODO: Add total parsed/error counts
 //TODO: Impl all README features
 //TODO: Big Refactor + Tests + Asserts
 fn main() {
@@ -41,10 +40,15 @@ fn main() {
     }
 
     let exit_code = Logger::exit_code();
-    if exit_code == 0 {
-        always_log!("Analysis completed with no errors found.");
-    } else {
-        always_log!("Analysis completed with errors.");
+    let sql_errors = Logger::get_sql_error_count();
+    let sql_total = Logger::get_sql_var_count();
+
+    if sql_total > 0 {
+        always_log!(
+            "Sqint: {} sql strings checked, {} errors found",
+            sql_total,
+            sql_errors
+        );
     }
 
     std::process::exit(exit_code);
