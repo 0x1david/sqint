@@ -1,4 +1,4 @@
-use crate::config::{Config, DEFAULT_CONFIG_NAME};
+use crate::config::{Config, DEFAULT_CONFIG_NAME, PYPROJECT_CONFIG_NAME};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use ignore::WalkBuilder;
 use logging::{always_log, error, warn};
@@ -92,20 +92,22 @@ fn get_changed_files(base_branch: &str, incl_staged: bool) -> Result<Vec<String>
 }
 
 pub fn load_config() -> Config {
-    let config_path = std::env::current_dir()
-        .expect("Unable to read current working directory")
-        .join(DEFAULT_CONFIG_NAME);
+    let cwd = std::env::current_dir().expect("Unable to read current working directory");
+    let sqint_conf = cwd.join(DEFAULT_CONFIG_NAME);
+    let pyproject_conf = cwd.join(PYPROJECT_CONFIG_NAME);
     let mut config = Config::default();
 
-    Config::from_file(&config_path).map_or_else(
-        |e| {
-            always_log!(
-                "Using default configuration. Couldn't load config from {}: '{e}'.",
-                config_path.display(),
-            );
-        },
-        |file_config| config.merge_with(file_config),
-    );
+    Config::from_file(&sqint_conf)
+        .or_else(|_| Config::from_file(&pyproject_conf))
+        .map_or_else(
+            |e| {
+                always_log!(
+                    "Using default configuration. Couldn't load config from {}: '{e}'.",
+                    sqint_conf.display(),
+                );
+            },
+            |file_config| config.merge_with(file_config),
+        );
     config
 }
 

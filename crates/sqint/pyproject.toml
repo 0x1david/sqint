@@ -1,3 +1,4 @@
+[tool.sqint]
 # Variable names to look for and analyze
 variable_contexts= [
     "*query*",
@@ -42,7 +43,7 @@ min_sql_length = 10
 # Whether file matching will respect git ignore
 respect_gitignore = false
 
-loglevel = "bail"
+loglevel = "error"
 
 # =============================================================================
 # INCREMENTAL MODE
@@ -71,6 +72,6 @@ param_markers = [
     "?",
 ]
 # String mappings to fix common SQL dialect differences
-[dialect_mappings]
+[tool.sqint.dialect_mappings]
 "NOTNULL" = "NOT NULL"
 "ISNULL" = "IS NULL"
